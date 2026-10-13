@@ -1,11 +1,13 @@
-# Protocol Ops Assistant: frontend
+# CORA: frontend
+
+Frontend for CORA, the Clinical Operations Research Assistant.
 
 Plain HTML/CSS/JS, no build step.
 
 ## Run it
 
 ```bash
-cd protocol-ops-frontend && python3 -m http.server 5173
+cd cora-frontend && python3 -m http.server 5173
 ```
 
 Then open http://localhost:5173. Click **Try a sample protocol** to see the results view with fictional data, then **Download PDF** for the exported plan.
