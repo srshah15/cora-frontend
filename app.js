@@ -4,8 +4,13 @@
 
   const state = {
     plan: null,
-    reviewed: new Set(), // keys like "safety:2"
+    // Reviewer decisions, keyed like "safety:2":
+    // { status: "accepted" | "edited" | "rejected", comment, reviewer, at, original }
+    reviews: new Map(),
     flaggedOnly: false,
+    pdfUrl: null, // object URL of the uploaded PDF, for the source pane
+    queue: [], // flagged item keys, in plan order
+    qi: 0, // index into queue; -1 means everything is reviewed
   };
 
   const SECTIONS = [
@@ -31,12 +36,17 @@
     return p[key] || [];
   }
 
+  // Flagged and no decision yet.
+  const isOpen = (it, k) => isFlagged(it) && !state.reviews.has(k);
+
   function openFlags(key) {
-    return itemsFor(key).filter((it, i) => isFlagged(it) && !state.reviewed.has(`${key}:${i}`)).length;
+    return itemsFor(key).filter((it, i) => isOpen(it, `${key}:${i}`)).length;
   }
 
+  const STATUS_LABEL = { accepted: "Accepted", edited: "Edited", rejected: "Rejected" };
+
   function showView(name) {
-    for (const v of ["uploadView", "processingView", "resultsView"]) $(v).hidden = v !== name;
+    for (const v of ["uploadView", "processingView", "resultsView", "reviewView"]) $(v).hidden = v !== name;
     $("newBtn").hidden = name === "uploadView";
     window.scrollTo(0, 0);
   }
@@ -83,7 +93,8 @@
   $("sampleBtn").addEventListener("click", () => runSample());
   $("newBtn").addEventListener("click", () => {
     state.plan = null;
-    state.reviewed.clear();
+    state.reviews.clear();
+    setPdf(null);
     $("modePill").hidden = true;
     $("uploadError").hidden = true;
     showView("uploadView");
@@ -116,6 +127,7 @@
       }
       const plan = await res.json();
       await stepper.finish();
+      setPdf(file);
       loadPlan(plan);
     } catch (err) {
       stepper.stop();
@@ -133,7 +145,14 @@
   async function runSample() {
     const stepper = startProcessing("sample-protocol-xr214.pdf");
     await stepper.finish(900);
+    setPdf(null);
     loadPlan(structuredClone(window.SAMPLE_PLAN));
+  }
+
+  // Keeps the uploaded PDF around so reviewers can check items against it.
+  function setPdf(file) {
+    if (state.pdfUrl) URL.revokeObjectURL(state.pdfUrl);
+    state.pdfUrl = file ? URL.createObjectURL(file) : null;
   }
 
   // Walks through the pipeline steps on a timer. The backend is a single request
@@ -172,7 +191,7 @@
   // ---------- results ----------
   function loadPlan(plan) {
     state.plan = plan;
-    state.reviewed.clear();
+    state.reviews.clear();
     setMode(!!plan.is_sample);
     showView("resultsView");
     render();
@@ -204,7 +223,8 @@
             <h1 class="summary-title">${esc(p.title)}</h1>
           </div>
           <div class="summary-actions">
-            <button class="btn btn-primary" id="exportPdf">Download PDF</button>
+            ${flags ? `<button class="btn btn-primary" id="startReview">Review ${flags} flagged</button>` : ""}
+            <button class="btn ${flags ? "btn-secondary" : "btn-primary"}" id="exportPdf">Download PDF</button>
           </div>
         </div>
         <dl class="facts">
@@ -223,6 +243,7 @@
         </div>
       </div>`;
     $("exportPdf").addEventListener("click", exportPdf);
+    $("startReview")?.addEventListener("click", () => openReview());
   }
 
   const fact = (k, v) => (v == null || v === "" ? "" : `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`);
@@ -258,7 +279,7 @@
     const items = itemsFor(key);
     const visible = items
       .map((it, i) => ({ it, i }))
-      .filter(({ it, i }) => !state.flaggedOnly || (isFlagged(it) && !state.reviewed.has(`${key}:${i}`)));
+      .filter(({ it, i }) => !state.flaggedOnly || isOpen(it, `${key}:${i}`));
     if (!items.length) return `<p class="empty">Nothing found in the protocol for this category.</p>`;
     if (!visible.length) return `<p class="empty">No open flags here.</p>`;
 
@@ -267,8 +288,8 @@
       <tbody>${visible
         .map(({ it, i }) => {
           const k = `${key}:${i}`;
-          const flagged = isFlagged(it) && !state.reviewed.has(k);
-          return `<tr class="${flagged ? "row-flag" : ""}">
+          const flagged = isOpen(it, k);
+          return `<tr class="${rowClass(it, k)}">
             ${cols.map((c, ci) => `<td${ci === 0 ? ' class="cell-main"' : ""}>${c.render ? c.render(it) : esc(it[c.field])}${ci === 0 ? noteFor(it, k, flagged) : ""}</td>`).join("")}
             <td class="col-conf">${confCell(it, k)}</td>
           </tr>`;
@@ -277,9 +298,16 @@
     </table></div>`;
   }
 
+  function rowClass(it, k) {
+    if (isOpen(it, k)) return "row-flag";
+    return state.reviews.get(k)?.status === "rejected" ? "row-rejected" : "";
+  }
+
   function noteFor(it, k, flagged) {
     const bits = [];
     if (it.notes) bits.push(`<div class="note ${flagged ? "note-warn" : ""}">${esc(it.notes)}</div>`);
+    const r = state.reviews.get(k);
+    if (r?.comment) bits.push(`<div class="note note-review">${esc(r.reviewer || "Reviewer")}: ${esc(r.comment)}</div>`);
     if (it.source_page) bits.push(`<div class="src">p. ${esc(it.source_page)}</div>`);
     return bits.join("");
   }
@@ -288,25 +316,19 @@
     if (typeof it.confidence !== "number") return "";
     const pct = Math.round(it.confidence * 100);
     const flagged = isFlagged(it);
-    const reviewed = state.reviewed.has(k);
     let html = `<div class="conf"><div class="conf-bar"><span style="width:${pct}%" class="${flagged ? "low" : ""}"></span></div><span class="mono">${pct}%</span></div>`;
     if (flagged) {
-      html += reviewed
-        ? `<button class="review-btn done" data-key="${k}">Reviewed ✓</button>`
-        : `<button class="review-btn" data-key="${k}">Mark reviewed</button>`;
+      const r = state.reviews.get(k);
+      html += r
+        ? `<button class="review-btn ${r.status}" data-key="${k}">${STATUS_LABEL[r.status]}</button>`
+        : `<button class="review-btn" data-key="${k}">Review</button>`;
     }
     return html;
   }
 
   function bindReviewButtons() {
     document.querySelectorAll(".review-btn").forEach((b) =>
-      b.addEventListener("click", () => {
-        const k = b.dataset.key;
-        state.reviewed.has(k) ? state.reviewed.delete(k) : state.reviewed.add(k);
-        const y = window.scrollY;
-        render();
-        window.scrollTo(0, y);
-      })
+      b.addEventListener("click", () => openReview(b.dataset.key))
     );
   }
 
@@ -333,7 +355,7 @@
       const visits = state.plan.visits || [];
       const procs = (state.plan.procedures || [])
         .map((p, i) => ({ p, i }))
-        .filter(({ p, i }) => !state.flaggedOnly || (isFlagged(p) && !state.reviewed.has(`procedures:${i}`)));
+        .filter(({ p, i }) => !state.flaggedOnly || isOpen(p, `procedures:${i}`));
       if (!state.plan.procedures?.length) return `<p class="empty">No procedures extracted.</p>`;
       if (!procs.length) return `<p class="empty">No open flags here.</p>`;
 
@@ -345,8 +367,8 @@
         <tbody>${procs
           .map(({ p, i }) => {
             const k = `procedures:${i}`;
-            const flagged = isFlagged(p) && !state.reviewed.has(k);
-            return `<tr class="${flagged ? "row-flag" : ""}">
+            const flagged = isOpen(p, k);
+            return `<tr class="${rowClass(p, k)}">
               <td class="sticky cell-main">${esc(p.name)} <span class="cat">${esc(p.category || "")}</span>${noteFor(p, k, flagged)}</td>
               ${visits.map((v) => `<td class="mark">${p.visits?.includes(v.id) ? "●" : ""}</td>`).join("")}
               <td class="col-conf">${confCell(p, k)}</td>
@@ -409,12 +431,302 @@
     },
   };
 
+  // ---------- review ----------
+  // Editable fields per section. The first field is the item's title.
+  const FIELDS = {
+    procedures: [
+      { f: "name", label: "Procedure" },
+      { f: "category", label: "Category" },
+      { f: "visits", label: "Visits", type: "visits" },
+    ],
+    staffing: [
+      { f: "role", label: "Role" },
+      { f: "fte", label: "Est. FTE", type: "number" },
+      { f: "responsibilities", label: "Responsibilities", type: "textarea" },
+    ],
+    safety: [
+      { f: "event", label: "Event" },
+      { f: "timeline", label: "Timeline" },
+      { f: "recipient", label: "Report to" },
+      { f: "method", label: "Method" },
+    ],
+    billing: [
+      { f: "item", label: "Item" },
+      { f: "designation", label: "Designation", type: "designation" },
+      { f: "visits", label: "Visits", type: "visits" },
+    ],
+    equipment: [
+      { f: "item", label: "Item" },
+      { f: "purpose", label: "Purpose", type: "textarea" },
+    ],
+    pharmacy: [{ f: "item", label: "Requirement", type: "textarea" }],
+    technology: [
+      { f: "system", label: "System" },
+      { f: "purpose", label: "Purpose", type: "textarea" },
+    ],
+  };
+
+  const reviewerInput = $("reviewerName");
+  try { reviewerInput.value = localStorage.getItem("cora.reviewer") || ""; } catch {}
+  reviewerInput.addEventListener("input", () => {
+    try { localStorage.setItem("cora.reviewer", reviewerInput.value.trim()); } catch {}
+  });
+  const reviewerName = () => reviewerInput.value.trim();
+
+  function keyParts(k) {
+    const [sec, i] = k.split(":");
+    return { sec, item: itemsFor(sec)[Number(i)] };
+  }
+
+  const flaggedKeys = () =>
+    SECTIONS.flatMap((s) => itemsFor(s.key).flatMap((it, i) => (isFlagged(it) ? [`${s.key}:${i}`] : [])));
+
+  // First undecided item at or after `from`, wrapping around; -1 if none left.
+  function nextOpen(from) {
+    const q = state.queue;
+    for (let n = 0; n < q.length; n++) {
+      const j = (from + n) % q.length;
+      if (!state.reviews.has(q[j])) return j;
+    }
+    return -1;
+  }
+
+  function openReview(k) {
+    state.queue = flaggedKeys();
+    if (!state.queue.length) return toast("Nothing is flagged for review.");
+    state.qi = k ? state.queue.indexOf(k) : nextOpen(0);
+    showView("reviewView");
+    renderReview();
+  }
+
+  $("backToPlan").addEventListener("click", () => {
+    const k = state.queue[state.qi];
+    showView("resultsView");
+    render();
+    if (k) $(`sec-${k.split(":")[0]}`)?.scrollIntoView();
+  });
+
+  const fmtValue = (v) => (Array.isArray(v) ? v.join(", ") : v ?? "") || "(empty)";
+  const same = (a, b) => JSON.stringify(a ?? "") === JSON.stringify(b ?? "");
+
+  function fieldInput(fd, item, locked, original) {
+    const v = item[fd.f];
+    const id = `rv-${fd.f}`;
+    const dis = locked ? "disabled" : "";
+    let input;
+    if (fd.type === "visits") {
+      input = `<div class="visit-picks" id="${id}">${(state.plan.visits || [])
+        .map(
+          (vis) => `<label class="visit-pick" title="${esc(vis.name)} · ${esc(vis.day)}">
+            <input type="checkbox" value="${esc(vis.id)}" ${v?.includes(vis.id) ? "checked" : ""} ${dis}>
+            <span class="mono">${esc(vis.id)}</span></label>`
+        )
+        .join("")}</div>`;
+    } else if (fd.type === "textarea") {
+      input = `<textarea id="${id}" rows="3" ${dis}>${esc(v)}</textarea>`;
+    } else {
+      const extra = fd.type === "number" ? 'type="number" step="0.05" min="0"' : fd.type === "designation" ? 'type="text" list="designations"' : 'type="text"';
+      input = `<input id="${id}" ${extra} value="${esc(v)}" ${dis}>`;
+    }
+    const was = original && !same(original[fd.f], v) ? `<div class="rv-was">Was: ${esc(fmtValue(original[fd.f]))}</div>` : "";
+    return `<div class="rv-field"><label for="${id}">${esc(fd.label)}</label>${input}${was}</div>`;
+  }
+
+  function readForm(sec) {
+    const vals = {};
+    for (const fd of FIELDS[sec]) {
+      const el = $(`rv-${fd.f}`);
+      if (fd.type === "visits") vals[fd.f] = [...el.querySelectorAll("input:checked")].map((c) => c.value);
+      else if (fd.type === "number") vals[fd.f] = el.value === "" ? "" : Number(el.value);
+      else vals[fd.f] = el.value.trim();
+    }
+    return vals;
+  }
+
+  function renderReview() {
+    const q = state.queue;
+    const decided = q.filter((k) => state.reviews.has(k)).length;
+    $("reviewCount").textContent = `${decided} of ${q.length} reviewed`;
+    $("reviewProgress").style.width = `${(decided / q.length) * 100}%`;
+
+    if (state.qi < 0) {
+      renderSource(null);
+      $("reviewPane").innerHTML = doneHtml() + queueHtml();
+      bindQueue();
+      $("rvDoneBack").addEventListener("click", () => $("backToPlan").click());
+      $("rvDoneExport").addEventListener("click", exportPdf);
+      return;
+    }
+
+    const k = q[state.qi];
+    const { sec, item } = keyParts(k);
+    const r = state.reviews.get(k);
+    const fields = FIELDS[sec];
+    const pct = Math.round(item.confidence * 100);
+    const label = SECTIONS.find((s) => s.key === sec).label;
+
+    $("reviewPane").innerHTML = `
+      <div class="rv-head">
+        <span class="eyebrow">${esc(label)} · ${state.qi + 1} of ${q.length}</span>
+        ${r ? `<span class="pill pill-${r.status}">${STATUS_LABEL[r.status]}${r.reviewer ? ` by ${esc(r.reviewer)}` : ""}</span>` : ""}
+      </div>
+      <h2 class="rv-title">${esc(item[fields[0].f])}</h2>
+      <div class="rv-why">
+        <div class="conf"><div class="conf-bar"><span style="width:${pct}%" class="low"></span></div><span class="mono">${pct}%</span></div>
+        <p>${item.notes ? esc(item.notes) : `Confidence is below the ${Math.round(reviewThreshold * 100)}% review threshold.`}</p>
+      </div>
+      <form id="rvForm" class="rv-form" autocomplete="off">
+        ${fields.map((fd) => fieldInput(fd, item, !!r, r?.original)).join("")}
+        <div class="rv-field">
+          <label for="rvComment">Comment</label>
+          <textarea id="rvComment" rows="2" placeholder="Optional: why you changed or rejected this" ${r ? "disabled" : ""}>${esc(r?.comment)}</textarea>
+        </div>
+      </form>
+      <div class="rv-actions">
+        <button id="rvPrev" class="btn btn-ghost" ${state.qi === 0 ? "disabled" : ""}>&larr; Prev</button>
+        <span class="spacer"></span>
+        ${r
+          ? `<button id="rvUndo" class="btn btn-secondary">Undo decision</button>`
+          : `<button id="rvReject" class="btn btn-danger">Reject</button>
+             <button id="rvAccept" class="btn btn-primary">Accept</button>`}
+        <button id="rvNext" class="btn btn-ghost" ${state.qi === q.length - 1 ? "disabled" : ""}>Next &rarr;</button>
+      </div>
+      <p class="kbd-hint">Shortcuts: <kbd>A</kbd> accept · <kbd>R</kbd> reject · <kbd>&larr;</kbd> <kbd>&rarr;</kbd> move</p>
+      ${queueHtml()}`;
+
+    renderSource(item.source_page);
+    bindQueue();
+    $("rvPrev").addEventListener("click", () => move(-1));
+    $("rvNext").addEventListener("click", () => move(1));
+    $("rvForm").addEventListener("submit", (e) => e.preventDefault());
+    if (r) {
+      $("rvUndo").addEventListener("click", undoDecision);
+    } else {
+      $("rvAccept").addEventListener("click", () => decide("accepted"));
+      $("rvReject").addEventListener("click", () => decide("rejected"));
+      // Relabel Accept once the reviewer changes something.
+      $("rvForm").addEventListener("input", () => {
+        const vals = readForm(sec);
+        const edited = fields.some((fd) => !same(vals[fd.f], item[fd.f]));
+        $("rvAccept").textContent = edited ? "Accept with edits" : "Accept";
+      });
+    }
+  }
+
+  function queueHtml() {
+    return `<div class="rv-queue"><h3>Flagged items</h3><ol>${state.queue
+      .map((k, j) => {
+        const { sec, item } = keyParts(k);
+        const r = state.reviews.get(k);
+        return `<li><button data-j="${j}" class="${j === state.qi ? "current" : ""}">
+          <span class="rv-q-title">${esc(item[FIELDS[sec][0].f])}</span>
+          <span class="pill pill-${r ? r.status : "open"}">${r ? STATUS_LABEL[r.status] : "Open"}</span>
+        </button></li>`;
+      })
+      .join("")}</ol></div>`;
+  }
+
+  function bindQueue() {
+    document.querySelectorAll(".rv-queue button").forEach((b) =>
+      b.addEventListener("click", () => {
+        state.qi = Number(b.dataset.j);
+        renderReview();
+      })
+    );
+  }
+
+  function doneHtml() {
+    const counts = { accepted: 0, edited: 0, rejected: 0 };
+    for (const r of state.reviews.values()) counts[r.status]++;
+    return `<div class="rv-done">
+      <h2>All flagged items reviewed</h2>
+      <p class="muted">${counts.accepted} accepted · ${counts.edited} edited · ${counts.rejected} rejected</p>
+      <div class="rv-actions">
+        <button id="rvDoneBack" class="btn btn-secondary">Back to plan</button>
+        <button id="rvDoneExport" class="btn btn-primary">Download PDF</button>
+      </div>
+    </div>`;
+  }
+
+  // Shows the uploaded PDF at the item's source page. Sample data has no PDF.
+  let shownSrc = null;
+  function renderSource(page) {
+    const pane = $("sourcePane");
+    const src = state.pdfUrl ? `${state.pdfUrl}#page=${page || 1}&navpanes=0&view=FitH` : null;
+    if (src && src === shownSrc) return;
+    shownSrc = src;
+    if (!state.pdfUrl) {
+      pane.innerHTML = `<div class="src-empty">
+        <strong>Source protocol</strong>
+        <p>${state.plan?.is_sample ? "The sample uses a fictional protocol, so there's no PDF to show." : "The source PDF isn't available."}
+        ${page ? `In a real upload, page ${esc(page)} opens here so you can check the item against the protocol.` : ""}</p>
+      </div>`;
+      return;
+    }
+    // A fresh iframe each time: the built-in PDF viewer ignores hash changes on an open document.
+    pane.innerHTML = `<div class="src-head">
+        <strong>Source protocol</strong>
+        <span class="muted">${page ? `p. ${esc(page)}` : "No page reference"}</span>
+        <a href="${src}" target="_blank" rel="noopener">Open in new tab</a>
+      </div>
+      <iframe class="src-frame" src="${src}" title="Source protocol PDF"></iframe>`;
+  }
+
+  function move(d) {
+    const j = state.qi + d;
+    if (j < 0 || j >= state.queue.length) return;
+    state.qi = j;
+    renderReview();
+  }
+
+  function decide(status) {
+    if (!reviewerName()) {
+      reviewerInput.focus();
+      return toast("Add your name first so the plan records who reviewed it.");
+    }
+    const k = state.queue[state.qi];
+    const { sec, item } = keyParts(k);
+    const fields = FIELDS[sec];
+    const vals = readForm(sec);
+    const original = Object.fromEntries(fields.map((fd) => [fd.f, structuredClone(item[fd.f])]));
+    if (status === "accepted" && fields.some((fd) => !same(vals[fd.f], item[fd.f]))) {
+      Object.assign(item, vals);
+      status = "edited";
+    }
+    state.reviews.set(k, {
+      status,
+      comment: $("rvComment").value.trim(),
+      reviewer: reviewerName(),
+      at: new Date().toISOString(),
+      original,
+    });
+    state.qi = nextOpen(state.qi);
+    renderReview();
+  }
+
+  function undoDecision() {
+    const k = state.queue[state.qi];
+    const r = state.reviews.get(k);
+    if (r.status === "edited") Object.assign(keyParts(k).item, r.original);
+    state.reviews.delete(k);
+    renderReview();
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if ($("reviewView").hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.target.closest?.("input, textarea, select")) return;
+    const act = { a: "rvAccept", r: "rvReject", ArrowLeft: "rvPrev", ArrowRight: "rvNext" }[e.key];
+    const btn = act && $(act);
+    if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+  });
+
   // ---------- export ----------
   function exportPdf() {
     if (!window.jspdf) return toast("PDF library didn't load. Check your internet connection and refresh.");
     try {
       window.buildPlanPdf(state.plan, {
-        reviewed: state.reviewed,
+        reviews: state.reviews,
+        reviewer: reviewerName(),
         isFlagged,
         sections: SECTIONS,
         itemsFor,

@@ -1,6 +1,6 @@
 // Builds the operational plan PDF in the browser with jsPDF + autotable.
 // Returns a jsPDF doc; the caller decides whether to .save() it.
-window.buildPlanPdf = function buildPlanPdf(plan, { reviewed, isFlagged, sections, itemsFor }) {
+window.buildPlanPdf = function buildPlanPdf(plan, { reviews, reviewer, isFlagged, sections, itemsFor }) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "letter" });
 
@@ -50,18 +50,21 @@ window.buildPlanPdf = function buildPlanPdf(plan, { reviewed, isFlagged, section
   y += 16;
 
   // ---------- review banner ----------
-  let open = 0, done = 0;
+  let open = 0, done = 0, rejected = 0;
   for (const s of sections) {
     itemsFor(s.key).forEach((it, i) => {
       if (!isFlagged(it)) return;
-      reviewed.has(`${s.key}:${i}`) ? done++ : open++;
+      const r = reviews.get(`${s.key}:${i}`);
+      if (!r) open++;
+      else { done++; if (r.status === "rejected") rejected++; }
     });
   }
+  const rejNote = rejected ? ` ${rejected} rejected (kept below, greyed out).` : "";
   const bannerText = open
     ? `${open} item${open === 1 ? "" : "s"} still need${open === 1 ? "s" : ""} human review (highlighted below).` +
-      (done ? ` ${done} already reviewed.` : "")
+      (done ? ` ${done} already reviewed.` : "") + rejNote
     : done
-      ? `All ${done} flagged items have been reviewed.`
+      ? `All ${done} flagged items have been reviewed.` + rejNote
       : "No low-confidence items were flagged.";
   doc.setFillColor(...(open ? C.warnFill : [229, 243, 234]));
   doc.roundedRect(M, y, W - 2 * M, 26, 4, 4, "F");
@@ -93,12 +96,18 @@ window.buildPlanPdf = function buildPlanPdf(plan, { reviewed, isFlagged, section
   y = doc.lastAutoTable.finalY + 8;
 
   // ---------- sections ----------
-  const status = (key, i, it) =>
-    !isFlagged(it) ? "" : reviewed.has(`${key}:${i}`) ? "Reviewed" : "REVIEW";
+  const STATUS = { accepted: "Accepted", edited: "Edited", rejected: "Rejected" };
+  const status = (key, i, it) => {
+    if (!isFlagged(it)) return "";
+    const r = reviews.get(`${key}:${i}`);
+    return r ? STATUS[r.status] : "REVIEW";
+  };
   const conf = (it) => (typeof it.confidence === "number" ? `${Math.round(it.confidence * 100)}%` : "");
-  const withNotes = (main, it) => {
+  const withNotes = (main, it, k) => {
     let s = clean(main);
     if (it.notes) s += `\nNote: ${clean(it.notes)}`;
+    const r = reviews.get(k);
+    if (r?.comment) s += `\n${clean(r.reviewer || "Reviewer")}: ${clean(r.comment)}`;
     if (it.source_page) s += `\n(p. ${it.source_page})`;
     return s;
   };
@@ -135,7 +144,7 @@ window.buildPlanPdf = function buildPlanPdf(plan, { reviewed, isFlagged, section
       body: items.map((it, i) => [
         ...cols.map((c, ci) => {
           const v = c.value ? c.value(it) : it[c.field];
-          return ci === 0 ? withNotes(v, it) : clean(v);
+          return ci === 0 ? withNotes(v, it, `${key}:${i}`) : clean(v);
         }),
         conf(it),
         flags[i],
@@ -154,9 +163,10 @@ window.buildPlanPdf = function buildPlanPdf(plan, { reviewed, isFlagged, section
     if (d.section !== "body") return;
     const f = flags[d.row.index];
     if (f === "REVIEW") d.cell.styles.fillColor = C.warnFill;
+    if (f === "Rejected") d.cell.styles.textColor = C.muted;
     if (d.column.index === statusCol) {
       d.cell.styles.fontStyle = "bold";
-      d.cell.styles.textColor = f === "REVIEW" ? C.warn : C.ok;
+      d.cell.styles.textColor = f === "REVIEW" ? C.warn : f === "Rejected" ? C.muted : C.ok;
     }
   }
 
@@ -191,7 +201,7 @@ window.buildPlanPdf = function buildPlanPdf(plan, { reviewed, isFlagged, section
         startY: y,
         head: [["Procedure", ...visits.map((v) => v.id), "Conf.", "Status"]],
         body: procs.map((pr, i) => [
-          withNotes(pr.name, pr),
+          withNotes(pr.name, pr, `procedures:${i}`),
           ...visits.map((v) => ({ content: "", mark: pr.visits?.includes(v.id) })),
           conf(pr),
           flags[i],
@@ -303,6 +313,10 @@ window.buildPlanPdf = function buildPlanPdf(plan, { reviewed, isFlagged, section
     doc.line(x, y, x + col, y);
     doc.text(label, x, y + 11);
   });
+  if (reviewer) {
+    doc.setFont("helvetica", "normal").setFontSize(10).setTextColor(...C.text);
+    doc.text(clean(reviewer), M, y - 5);
+  }
 
   // ---------- footer on every page ----------
   const pages = doc.getNumberOfPages();

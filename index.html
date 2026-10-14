@@ -78,9 +78,34 @@
         <div id="sections"></div>
       </div>
     </section>
+
+    <!-- Review -->
+    <section id="reviewView" class="view review" hidden>
+      <div class="review-bar">
+        <button id="backToPlan" class="btn btn-ghost">&larr; Back to plan</button>
+        <div class="review-progress">
+          <span id="reviewCount"></span>
+          <div class="progress" aria-hidden="true"><span id="reviewProgress"></span></div>
+        </div>
+        <label class="reviewer">
+          <span>Reviewer</span>
+          <input id="reviewerName" type="text" placeholder="Your name" autocomplete="name">
+        </label>
+      </div>
+      <div class="review-grid">
+        <div id="sourcePane" class="card source-pane"></div>
+        <div id="reviewPane" class="card review-pane"></div>
+      </div>
+    </section>
   </main>
 
   <div id="toast" class="toast" role="status" hidden></div>
+
+  <datalist id="designations">
+    <option value="Sponsor"></option>
+    <option value="Standard of care"></option>
+    <option value="Not billable"></option>
+  </datalist>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
