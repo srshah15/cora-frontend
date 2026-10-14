@@ -1,7 +1,12 @@
-"""This file contains the main application logic for the Protocol Operations backend."""
+"""FastAPI backend for CORA: receives a protocol PDF and returns a draft operational plan."""
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+
+from extract import ExtractionError, extract_plan
+
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # matches the frontend limit
 
 app = FastAPI()
 
@@ -39,78 +44,14 @@ async def upload_protocol(file: UploadFile = File(...)):
             detail="Uploaded file is empty",
         )
 
-    return {
-        "id": "amgen-demo",
-        "is_sample": False,
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="That file is over 50 MB. Try a smaller protocol or split the appendices out.",
+        )
 
-        "protocol": {
-            "title": file.filename,
-            "short_title": "Uploaded Protocol",
-            "registry_id": "NCT03872401",
-            "phase": "Phase 3",
-            "sponsor": "Amgen Inc.",
-            "therapeutic_area": "Cardiovascular",
-            "design": "Randomized, double-blind, placebo-controlled",
-            "enrollment": 12000,
-            "duration": "Median follow-up ≥ 4.5 years",
-            "pages": None,
-        },
-
-        "visits": [
-            {
-                "id": "SCR",
-                "name": "Screening",
-                "day": "Up to 21 days before Day 1",
-                "window": None,
-                "type": "Clinic",
-            },
-            {
-                "id": "D1",
-                "name": "Day 1",
-                "day": "Day 1",
-                "window": None,
-                "type": "Clinic",
-            },
-            {
-                "id": "Q16W",
-                "name": "Treatment Visit",
-                "day": "Every 16 weeks",
-                "window": "±7 days",
-                "type": "Clinic",
-            },
-        ],
-
-        "procedures": [
-            {
-                "name": "Informed consent",
-                "category": "Regulatory",
-                "visits": ["SCR"],
-                "source_page": 19,
-                "confidence": 0.99,
-            },
-            {
-                "name": "Physical examination",
-                "category": "Clinical",
-                "visits": ["SCR"],
-                "source_page": 19,
-                "confidence": 0.65,
-            },
-            {
-                "name": "Investigational product administration",
-                "category": "Study drug",
-                "visits": ["D1", "Q16W"],
-                "source_page": 21,
-                "confidence": 0.99,
-            },
-        ],
-
-        "staffing": [],
-        "safety": [],
-        "billing": [],
-        "equipment": [],
-        "pharmacy": {
-            "involved": False,
-            "items": [],
-        },
-        "technology": [],
-    }
+    try:
+        # PDF parsing is CPU-bound, so keep it off the event loop.
+        return await run_in_threadpool(extract_plan, contents, file.filename)
+    except ExtractionError as e:
+        raise HTTPException(status_code=422, detail=str(e))

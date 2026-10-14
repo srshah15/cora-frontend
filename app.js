@@ -122,8 +122,10 @@
       body.append("file", file);
       const res = await fetch(`${apiBase}/api/protocols`, { method: "POST", body });
       if (!res.ok) {
-        const detail = await res.text().catch(() => "");
-        throw new Error(`Server returned ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+        const text = await res.text().catch(() => "");
+        let detail = text;
+        try { detail = JSON.parse(text).detail || text; } catch {}
+        throw new Error(detail ? String(detail).slice(0, 200) : `Server returned ${res.status}`);
       }
       const plan = await res.json();
       await stepper.finish();
@@ -235,6 +237,7 @@
           ${fact("Design", p.design)}
           ${fact("Duration", p.duration)}
         </dl>
+        ${state.plan.extraction === "keyword" ? `<p class="extraction-note">Early draft: CORA found these items by searching the protocol text for keywords, and each one links to the page it came from. The visit schedule, staffing and billing aren't extracted yet.</p>` : ""}
         <div class="summary-stats">
           ${stat(state.plan.visits?.length ?? 0, "visits")}
           ${stat(state.plan.procedures?.length ?? 0, "procedures")}
@@ -359,7 +362,9 @@
       if (!state.plan.procedures?.length) return `<p class="empty">No procedures extracted.</p>`;
       if (!procs.length) return `<p class="empty">No open flags here.</p>`;
 
-      return `<p class="section-sub">Schedule of assessments. Each mark is a procedure required at that visit.</p>
+      return `<p class="section-sub">${visits.length
+        ? "Schedule of assessments. Each mark is a procedure required at that visit."
+        : "Procedures mentioned in the protocol. Which visit each one happens at isn't extracted yet."}</p>
       <div class="table-wrap"><table class="soa">
         <thead><tr><th class="sticky">Procedure</th>${visits
           .map((v) => `<th title="${esc(v.name)} · ${esc(v.day)}"><span class="mono">${esc(v.id)}</span></th>`)
@@ -515,7 +520,8 @@
     const dis = locked ? "disabled" : "";
     let input;
     if (fd.type === "visits") {
-      input = `<div class="visit-picks" id="${id}">${(state.plan.visits || [])
+      const visits = state.plan.visits || [];
+      input = `<div class="visit-picks" id="${id}">${visits.length ? "" : `<span class="muted">No visits extracted yet</span>`}${visits
         .map(
           (vis) => `<label class="visit-pick" title="${esc(vis.name)} · ${esc(vis.day)}">
             <input type="checkbox" value="${esc(vis.id)}" ${v?.includes(vis.id) ? "checked" : ""} ${dis}>
