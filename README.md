@@ -1,8 +1,30 @@
-# Protocol Ops Assistant: frontend
+# Protocol-to-Operations Assistant
+
+## Backend
+
+## Local backend setup
+
+The frontend sends uploaded protocol PDFs to a FastAPI backend at
+`http://localhost:8000` by default.
+
+To run the current local demo, start the backend in a separate terminal:
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install fastapi uvicorn python-multipart
+uvicorn main:app --reload --port 8000
+
+You can verify the backend is running by visiting `http://localhost:8000/health`.
+
+The frontend can then be started in a second terminal.
+
+## Frontend
 
 Plain HTML/CSS/JS, no build step.
 
-## Run it
+### Run it
 
 ```bash
 cd protocol-ops-frontend && python3 -m http.server 5173
@@ -12,7 +34,7 @@ Then open http://localhost:5173. Click **Try a sample protocol** to see the resu
 
 The backend URL defaults to `http://localhost:8000`. Point it somewhere else with `?api=https://your-app.onrender.com`, or edit `config.js`.
 
-## What the backend needs to provide
+### What the backend needs to provide
 
 | Method | Path | Returns |
 | --- | --- | --- |
@@ -46,7 +68,7 @@ FastAPI will need CORS enabled for the frontend origin (`CORSMiddleware`).
 - `notes` is where the backend explains why something is uncertain. It shows up under the item.
 - `source_page` is optional but lets reviewers check the item against the PDF.
 
-## Files
+### Files
 
 - `index.html`: the three views (upload, processing, results)
 - `app.js`: upload handling, rendering, review state
