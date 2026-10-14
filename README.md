@@ -1,8 +1,8 @@
-# Protocol-to-Operations Assistant
+# CORA: Clinical Operations Research Assistant
 
 ## Backend
 
-## Local backend setup
+### Local setup
 
 The frontend sends uploaded protocol PDFs to a FastAPI backend at
 `http://localhost:8000` by default.
@@ -15,6 +15,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install fastapi uvicorn python-multipart
 uvicorn main:app --reload --port 8000
+```
 
 You can verify the backend is running by visiting `http://localhost:8000/health`.
 
@@ -27,7 +28,7 @@ Plain HTML/CSS/JS, no build step.
 ### Run it
 
 ```bash
-cd protocol-ops-frontend && python3 -m http.server 5173
+cd cora-frontend && python3 -m http.server 5173
 ```
 
 Then open http://localhost:5173. Click **Try a sample protocol** to see the results view with fictional data, then **Download PDF** for the exported plan.

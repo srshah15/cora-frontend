@@ -309,7 +309,7 @@ window.buildPlanPdf = function buildPlanPdf(plan, { reviewed, isFlagged, section
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(...C.muted);
-    doc.text(clean(`Protocol Ops Assistant  ·  ${p.short_title || p.registry_id || ""}  ·  Draft, not for clinical use without review`), M, H - 24);
+    doc.text(clean(`CORA  ·  ${p.short_title || p.registry_id || ""}  ·  Draft, not for clinical use without review`), M, H - 24);
     doc.text(`Page ${i} of ${pages}`, W - M, H - 24, { align: "right" });
   }
 
