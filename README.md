@@ -18,7 +18,7 @@ cp .env.example .env    # fill in required keys
 uvicorn main:app --reload --port 8000
 ```
 The frontend sends uploaded protocol PDFs to a FastAPI backend at
-`http://localhost:8000`. Check that `http://localhost:8000/health` returns `{"status": "ok"}.
+`http://localhost:8000`. Check that `http://localhost:8000/health` returns `{"status": "ok"}`.
 
 The backend URL defaults to `http://localhost:8000`. Point it somewhere else with `?api=https://your-app.onrender.com`, or edit `config.js`.
 
