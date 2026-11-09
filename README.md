@@ -1,39 +1,42 @@
 # CORA: Clinical Operations Research Assistant
 
-## Backend
+## Repository Layout
+- `frontend/`: web app
+- `backend/`: FastAPI and extraction code
+- `backend/.env.example`: template for future backend configuration
+- `.gitignore`: excludes secrets, environments, dependencies, caches, build output, and OS files
 
-### Local setup
-
-The frontend sends uploaded protocol PDFs to a FastAPI backend at
-`http://localhost:8000` by default.
-
-To run the current local demo, start the backend in a separate terminal:
+## Setup
+Requires Python 3.13+
 
 ```bash
-cd backend
+cd cora-frontend/backend
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env    # fill in required keys
 uvicorn main:app --reload --port 8000
 ```
-
-You can verify the backend is running by visiting `http://localhost:8000/health`.
-
-The frontend can then be started in a second terminal.
-
-## Frontend
-
-Plain HTML/CSS/JS, no build step.
-
-### Run it
-
-```bash
-cd cora-frontend && python3 -m http.server 5173
-```
-
-Then open http://localhost:5173. Click **Try a sample protocol** to see the results view with fictional data, then **Download PDF** for the exported plan.
+The frontend sends uploaded protocol PDFs to a FastAPI backend at
+`http://localhost:8000`. Check that `http://localhost:8000/health` returns `{"status": "ok"}.
 
 The backend URL defaults to `http://localhost:8000`. Point it somewhere else with `?api=https://your-app.onrender.com`, or edit `config.js`.
+
+In a second terminal:
+
+```bash
+cd cora-frontend/frontend
+python3 -m http.server 5173
+```
+Open http://localhost:5173.
+
+## Tests
+```bash
+cd cora-frontend/backend && pytest
+```
+Click **Try a sample protocol** to load fictional results, then **Download PDF** to check export. To check the full workflow, upload a public, text-based protocol PDF with the backend running.
+
+## API and Data Format
 
 ### What the backend needs to provide
 

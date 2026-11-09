@@ -1,3 +1,3 @@
 # Test-only dependencies.
-# Install with: backend/.venv/bin/pip install -r backend/requirements-dev.txt
+# Install with: pip install -r requirements.txt -r requirements-dev.txt
 pytest==9.2.0
