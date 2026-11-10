@@ -1,9 +1,10 @@
 """FastAPI backend for CORA: receives a protocol PDF and returns a draft operational plan."""
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
+from docx_export import DOCX_MEDIA_TYPE, DocxExportRequest, build_plan_docx, export_filename
 from extract import ExtractionError, extract_plan
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # matches the frontend limit
@@ -20,6 +21,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Lets the frontend read the export filename on cross-origin downloads.
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -55,3 +58,24 @@ async def upload_protocol(file: UploadFile = File(...)):
         return await run_in_threadpool(extract_plan, contents, file.filename)
     except ExtractionError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.post("/api/export/docx")
+def export_docx(req: DocxExportRequest):
+    """Build an editable Word draft of the plan with review status marked.
+
+    The body is validated against OperationalPlan (plus review decisions keyed
+    "<section>:<index>"), so an invalid plan returns 422. Sync def: FastAPI runs
+    it in a threadpool, keeping document building off the event loop.
+    """
+    data = build_plan_docx(
+        req.plan,
+        req.reviews,
+        review_threshold=req.review_threshold,
+        reviewer=req.reviewer,
+    )
+    return Response(
+        content=data,
+        media_type=DOCX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{export_filename(req.plan)}"'},
+    )
