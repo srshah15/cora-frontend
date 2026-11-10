@@ -30,10 +30,40 @@ python3 -m http.server 5173
 ```
 Open http://localhost:5173.
 
-## Tests
+## Running tests
+The backend tests are the automated regression baseline. They don't need an API key or network access, and they don't need the server running.
+
 ```bash
-cd backend && pytest
+cd backend
+python3 -m venv .venv            # skip if you already made it during Setup
+source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+pytest                           # or: pytest -v
 ```
+
+`pytest.ini` puts `backend/` on the import path and collects tests from `tests/`:
+
+```
+backend/tests/
+├── conftest.py          # shared fixtures: TestClient, sample PDF bytes, isolation guards
+├── unit/                # pure functions: schema (models.py), PDF text extraction (extract.py)
+├── integration/         # FastAPI TestClient tests against /health and /api/protocols
+└── fixtures/
+    ├── make_fixtures.py     # generates the fixture PDFs
+    └── sample_protocol.pdf  # one-page synthetic protocol, no real data
+```
+
+The fixtures in `conftest.py` block every outbound network connection and unset `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` for every test, so a real external call fails the test instead of going out. Extraction is keyword-based today. When an LLM step is added, its mock belongs in `conftest.py` too.
+
+To regenerate the fixture PDF after you edit its text in `make_fixtures.py`, run this from `backend/`:
+
+```bash
+python tests/fixtures/make_fixtures.py
+```
+
+Tests check for known strings from the fixture, such as "Synthetic Test Study of Drug X" and `NCT00000000`, so update them if you change those.
+
+### Manual check
 Click **Try a sample protocol** to load fictional results, then **Download PDF** to check export. To check the full workflow, upload a public, text-based protocol PDF with the backend running.
 
 ## API and Data Format
