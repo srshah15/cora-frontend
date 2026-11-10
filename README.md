@@ -10,7 +10,7 @@
 Requires Python 3.13+
 
 ```bash
-cd cora-frontend/backend
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
@@ -25,14 +25,14 @@ The backend URL defaults to `http://localhost:8000`. Point it somewhere else wit
 In a second terminal:
 
 ```bash
-cd cora-frontend/frontend
+cd frontend
 python3 -m http.server 5173
 ```
 Open http://localhost:5173.
 
 ## Tests
 ```bash
-cd cora-frontend/backend && pytest
+cd backend && pytest
 ```
 Click **Try a sample protocol** to load fictional results, then **Download PDF** to check export. To check the full workflow, upload a public, text-based protocol PDF with the backend running.
 
