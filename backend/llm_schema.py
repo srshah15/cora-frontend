@@ -1,10 +1,11 @@
-"""The shape Claude is asked to fill in (structured output).
+"""The shape Claude is asked to fill in (the submit_plan tool's input schema).
 
 This is deliberately separate from models.py:
 - models.py is the strict contract with the frontend (ranges, visit references).
 - These models are loose on purpose. Every field is present but may be null,
-  and numbers carry no range limits, because the API's JSON-schema mode doesn't
-  enforce ranges anyway. llm_extractor.py then checks each item against the
+  and numbers carry no range limits. The API doesn't enforce this schema (the
+  tool isn't strict), so llm_extractor.py validates the reply against
+  LLMPlan, then checks each item against the
   strict models, so one bad item can be dropped without losing the whole plan.
 
 The field descriptions are sent to the model as part of the schema, so they

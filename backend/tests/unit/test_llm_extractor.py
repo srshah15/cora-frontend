@@ -5,6 +5,7 @@ malformed JSON and schema-invalid, plus the "don't invent" checks from #18.
 """
 
 import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -60,11 +61,44 @@ def test_request_sends_page_numbered_text_and_the_schema(extractor, llm_mode, ll
     call = llm_mode.calls[0]
     prompt = call["messages"][0]["content"]
     assert '<page n="1">' in prompt and "Synthetic Test Study of Drug X" in prompt
-    assert call["output_format"] is llm_extractor.LLMPlan
+    assert call["tools"] == [llm_extractor.PLAN_TOOL]
+    # Not forced (current models reject that), and one call only: otherwise the
+    # model splits a long plan across several partial submit_plan calls.
+    assert call["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+    assert "exactly once with the complete" in call["system"]
     assert call["model"] == "claude-opus-5-5"
     assert call["output_config"] == {"effort": "medium"}
     assert "Never fill a gap" in call["system"]  # the no-invention rule
-    assert llm_mode.options[0]["timeout"] == 50.0
+    assert llm_mode.options[0]["timeout"] == 100.0
+
+
+def test_plan_schema_is_sent_as_a_non_strict_tool(extractor, llm_mode, llm_payload, parsed):
+    # Regression: LLMPlan sent as a structured-output schema (output_format) or
+    # a strict tool is compiled into a grammar, and the API rejects it as too
+    # large on every model, so every upload silently fell back to keywords.
+    llm_mode.queue(llm_payload)
+    extractor.extract(parsed)
+
+    call = llm_mode.calls[0]
+    assert "output_format" not in call
+    assert "format" not in call["output_config"]
+    tool = call["tools"][0]
+    assert not tool.get("strict")
+    assert tool["input_schema"] == llm_extractor.LLMPlan.model_json_schema()
+
+
+def test_only_the_submit_plan_tool_input_is_used(extractor, llm_mode, llm_payload, parsed, monkeypatch):
+    # A text block before the tool call is ignored; the plan comes from the tool.
+    real_create = llm_mode.create
+
+    def with_preamble(**kwargs):
+        response = real_create(**kwargs)
+        response.content.insert(0, SimpleNamespace(type="text", text="Here is the plan."))
+        return response
+
+    monkeypatch.setattr(llm_mode, "create", with_preamble)
+    llm_mode.queue(llm_payload)
+    assert [v.id for v in extractor.extract(parsed).visits] == ["V1", "V2", "V3"]
 
 
 def test_build_prompt_numbers_pages_from_one():
@@ -178,9 +212,9 @@ def test_partial_response_keeps_good_items_and_flags_the_section(extractor, llm_
     assert "shared the id V1" in plan.section_reviews.visits.reason
 
 
-# ---------- malformed JSON and schema-invalid ----------
+# ---------- no plan, or a plan that doesn't fit the schema ----------
 
-def test_malformed_json_is_invalid_output(extractor, llm_mode, parsed):
+def test_text_reply_without_the_tool_call_is_invalid_output(extractor, llm_mode, parsed):
     llm_mode.queue('{"protocol": {"title": "cut off')
     with pytest.raises(LLMError) as err:
         extractor.extract(parsed)

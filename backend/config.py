@@ -23,7 +23,10 @@ EXTRACTORS = (KEYWORD, LLM)
 # LLM extraction is something an administrator opts into.
 DEFAULT_EXTRACTOR = KEYWORD
 DEFAULT_LLM_MODEL = "claude-opus-5-5"
-DEFAULT_LLM_TIMEOUT_SECONDS = 50.0
+# A full plan for a 20-page protocol takes ~45-50 s even on the fastest model,
+# so 50 s timed out about half the time. 100 s still fits inside the 120 s
+# request limit (the retry is skipped when it would not fit).
+DEFAULT_LLM_TIMEOUT_SECONDS = 100.0
 # How hard the model thinks: low | medium | high | xhigh | max. Higher is
 # slower and costs more; medium balances accuracy against the 60 s target.
 DEFAULT_LLM_EFFORT = "medium"
