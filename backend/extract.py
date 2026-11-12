@@ -265,7 +265,10 @@ def find_phase(front):
 
 
 def find_registry_id(pages, filename):
-    first = Counter(re.findall(r"NCT\d{8}", " ".join(pages[:3])))
+    # OCR often reads the digit 0 as the letter O ("NCTOO000000"). An NCT id
+    # is always NCT + 8 digits, so an O in that position can only be a 0.
+    found = re.findall(r"NCT[\dO]{8}(?![\dO])", " ".join(pages[:3]))
+    first = Counter(f[:3] + f[3:].replace("O", "0") for f in found)
     if first:
         return first.most_common(1)[0][0]
     m = re.search(r"NCT\d{8}", filename or "", re.I)
