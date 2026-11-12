@@ -60,6 +60,25 @@ def test_merge_fills_sections_the_llm_left_empty(llm_mode, llm_payload, sample_p
     assert plan.protocol.title == "Synthetic Test Study of Drug X"
 
 
+def test_merge_fills_empty_llm_staffing_with_its_review_flag(llm_mode, llm_payload, sample_pdf_bytes):
+    llm_payload["staffing"] = []
+    llm_mode.queue(llm_payload)
+    plan = _run(sample_pdf_bytes).plan
+
+    assert {s.role for s in plan.staffing} == {"Principal Investigator", "Study coordinator", "Pharmacist"}
+    assert plan.extraction_info.sections["staffing"] == "keyword"
+    # The LLM's "nothing found" flag no longer describes the section.
+    assert plan.section_reviews.staffing.needs_review is False
+
+
+def test_keyword_mode_flags_billing_and_a_missing_schedule(fake_llm, sample_pdf_bytes):
+    plan = _run(sample_pdf_bytes).plan
+    reviews = plan.section_reviews
+    assert reviews.billing.needs_review and "clinical trial agreement" in reviews.billing.reason
+    assert reviews.visits.needs_review and reviews.procedures.needs_review
+    assert plan.extraction_info.sections["staffing"] == "keyword"
+
+
 def test_merge_does_not_replace_llm_sections(llm_mode, llm_payload, sample_pdf_bytes):
     llm_mode.queue(llm_payload)
     plan = _run(sample_pdf_bytes).plan

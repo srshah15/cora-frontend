@@ -96,11 +96,10 @@ def merge(llm_plan: OperationalPlan, keyword_plan: OperationalPlan) -> Dict[str,
         if getattr(llm_plan.protocol, name) in (None, ""):
             setattr(llm_plan.protocol, name, getattr(keyword_plan.protocol, name))
 
-    # The minimum-success sections (visits, procedures, staffing) are not
-    # filled: the keyword extractor has no visits or staffing, and its
-    # procedure list has no visit links, so an empty LLM result there stays
-    # empty and flagged.
-    for key in ("safety", "equipment", "technology"):
+    # Visits and procedures are not filled: keyword procedures are tagged with
+    # keyword visit ids, which would not match the LLM's visits, so an empty
+    # LLM result there stays empty and flagged.
+    for key in ("staffing", "safety", "equipment", "technology"):
         if not getattr(llm_plan, key) and getattr(keyword_plan, key):
             setattr(llm_plan, key, list(getattr(keyword_plan, key)))
             filled[key] = "keyword"
@@ -108,6 +107,10 @@ def merge(llm_plan: OperationalPlan, keyword_plan: OperationalPlan) -> Dict[str,
         llm_plan.pharmacy = keyword_plan.pharmacy
         if keyword_plan.pharmacy.items:
             filled["pharmacy"] = "keyword"
+    # A filled section takes the keyword review flag with it: the LLM's flag
+    # described the section it left empty.
+    for key in filled:
+        setattr(llm_plan.section_reviews, key, getattr(keyword_plan.section_reviews, key))
     return filled
 
 

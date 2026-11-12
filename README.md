@@ -7,19 +7,6 @@
 - `.gitignore`: excludes secrets, environments, dependencies, caches, build output, and OS files
 
 ## Setup
-Requires Python 3.13+
-
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
-cp .env.example .env    # optional; see Configuration below
-uvicorn main:app --reload --port 8000
-```
-The frontend sends uploaded protocol PDFs to a FastAPI backend at
-`http://localhost:8000`. Check that `http://localhost:8000/health` returns `{"status": "ok"}`.
-
 ### Configuration
 The backend reads its settings from environment variables, or from `backend/.env` (never committed). All of them are optional.
 
@@ -40,7 +27,7 @@ If `EXTRACTOR=llm` and the key is missing, the server stops at startup with a me
 
 ### How extraction works
 1. **Ingest.** The PDF is read in memory. Pages with no text layer are read by OCR if Tesseract is installed.
-2. **Extract.** With `EXTRACTOR=llm`, the page-numbered text goes to Claude in one request and comes back as structured JSON. With `keyword`, items are found by keyword search.
+2. **Extract.** With `EXTRACTOR=llm`, the page-numbered text goes to Claude in one request and comes back as structured JSON. With `keyword`, items and staff roles are found by keyword search, and visits and procedure-to-visit tags are read from the Schedule of Activities table when it is a ruled table. Sections keyword search can't fill (billing, a schedule it couldn't read, no roles found) are flagged for review with the reason.
 3. **Validate and merge.** Every item is checked against the plan schema. Items with no source page, no confidence or a bad reference are flagged for review. Sections the LLM left empty are filled from the keyword results.
 4. **Fallback.** If the LLM can't be used (timeout, rate limit, bad key, unreadable answer), the request is retried once when that could help, and otherwise the keyword plan is returned with a warning in `extraction_info.warning`.
 
@@ -56,6 +43,19 @@ OCR uses Tesseract through PyMuPDF. Without it, text PDFs work as usual and scan
 - Render: deploy `backend/` as a Docker web service. `backend/Dockerfile` installs Tesseract.
 
 If Tesseract is installed somewhere unusual, set `TESSDATA_PREFIX` to its `tessdata` folder.
+
+### Backend
+Requires Python 3.13+
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env    # optional; see Configuration below
+uvicorn main:app --reload --port 8000
+```
+The frontend sends uploaded protocol PDFs to a FastAPI backend at `http://localhost:8000`. Check that `http://localhost:8000/health` returns `{"status": "ok"}`.
 
 ### Frontend
 The frontend is a React app built with Vite and Tailwind. It needs Node 22 or newer. In a second terminal:
@@ -88,8 +88,8 @@ Every run prints a coverage table (`pytest-cov`). The three tests that need a re
 
 ```
 backend/tests/
-├── conftest.py          # shared fixtures: TestClient, sample PDF bytes, isolation guards
-├── unit/                # pure functions: schema (models.py), PDF text extraction (extract.py)
+├── conftest.py          # shared fixtures: TestClient, sample PDF bytes, synthetic schedule-table PDFs, isolation guards
+├── unit/                # pure functions: schema (models.py), PDF text extraction and keyword sections (extract.py, soa.py)
 ├── integration/         # FastAPI TestClient tests against /health and /api/protocols
 └── fixtures/
     ├── make_fixtures.py     # generates the fixture PDFs
@@ -157,7 +157,7 @@ FastAPI will need CORS enabled for the frontend origin (`CORSMiddleware`).
                 "therapeutic_area", "design", "enrollment", "duration", "pages" },
   "visits":     [{ "id": "V1", "name", "day", "window", "type": "Clinic|Phone" }],
   "procedures": [{ "name", "category", "visits": ["V1","V2"], "notes", "source_page", "confidence" }],
-  "staffing":   [{ "role", "fte", "responsibilities", "confidence" }],
+  "staffing":   [{ "role", "fte", "responsibilities", "qualifications", "notes", "source_page", "confidence" }],
   "safety":     [{ "event", "timeline", "recipient", "method", "notes", "source_page", "confidence" }],
   "billing":    [{ "item", "designation": "Sponsor|Standard of care|...", "visits", "notes", "confidence" }],
   "equipment":  [{ "item", "purpose", "confidence" }],

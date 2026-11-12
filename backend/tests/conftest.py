@@ -114,6 +114,51 @@ def make_pdf():
     return _make
 
 
+def _draw_table(page, rows, x0=40, y0=60, label_width=160, col_width=72, row_height=16):
+    """Draw a ruled table, the way protocols lay out a Schedule of Activities.
+
+    None in a row means "merged with the cell to the left": the dividing line
+    isn't drawn, so PyMuPDF reads one cell spanning both columns. Text after
+    "^" is drawn small and raised, like a footnote letter.
+    """
+    ncols = len(rows[0])
+    xs = [x0, x0 + label_width] + [x0 + label_width + col_width * k for k in range(1, ncols)]
+    for r, row in enumerate(rows):
+        y = y0 + r * row_height
+        page.draw_line((xs[0], y), (xs[-1], y))
+        for c in range(ncols + 1):
+            if c in (0, ncols) or row[c] is not None:
+                page.draw_line((xs[c], y), (xs[c], y + row_height))
+        for c, text in enumerate(row):
+            if not text:
+                continue
+            main, _, sup = text.partition("^")
+            page.insert_text((xs[c] + 3, y + row_height - 5), main, fontsize=7)
+            if sup:
+                width = pymupdf.get_text_length(main, fontsize=7)
+                page.insert_text((xs[c] + 3 + width, y + row_height - 8), sup, fontsize=4.5)
+    bottom = y0 + len(rows) * row_height
+    page.draw_line((xs[0], bottom), (xs[-1], bottom))
+
+
+@pytest.fixture
+def make_table_pdf():
+    """Build a landscape PDF from (text, table rows) pages; rows may be None."""
+
+    def _make(pages) -> bytes:
+        doc = pymupdf.open()
+        for text, rows in pages:
+            page = doc.new_page(width=792, height=612)
+            page.insert_text((40, 40), text, fontsize=10)
+            if rows:
+                _draw_table(page, rows)
+        data = doc.tobytes()
+        doc.close()
+        return data
+
+    return _make
+
+
 # ---------- the mocked LLM ----------
 #
 # Why a fake client instead of the real SDK with patched HTTP: the unit under

@@ -1,9 +1,12 @@
 """Rule-based extraction of an operational plan from protocol PDF text.
 
 No AI here: this reads the PDF's text layer, pulls the study header from the
-title page, and finds procedures, equipment, systems and safety reporting by
-keyword. Every item records the page it was found on so reviewers can check it.
-Confidence reflects how many pages mention the item, not any deeper analysis.
+title page, and finds procedures, staffing, equipment, systems and safety
+reporting by keyword. Visits and procedure-to-visit tags come from the
+Schedule of Activities table (soa.py). Every item records the page it was
+found on so reviewers can check it. Confidence reflects how many pages mention
+the item, not any deeper analysis, and sections keyword search can't vouch for
+carry a review flag with the reason.
 """
 
 import re
@@ -13,6 +16,8 @@ from dataclasses import dataclass
 from typing import Any, List, Optional
 
 import pymupdf
+
+from soa import Row, Schedule, read_schedule
 
 
 class ExtractionError(Exception):
@@ -521,6 +526,167 @@ def safety_items(flat_pages, skip):
     return items
 
 
+# ---------- staffing ----------
+
+STAFFING = [
+    # "investigator" alone means the PI; sub-/co-investigators and the
+    # Investigator's Brochure are excluded.
+    ("Principal Investigator", r"principal investigators?|(?<![\w-])investigators?\b(?!['’]?s? brochure)"),
+    ("Sub-investigator", r"sub-?investigators?|co-?investigators?"),
+    ("Study coordinator", r"(study|research|clinical research|site) coordinators?|\bcrcs?\b"),
+    ("Research nurse", r"(research|study) nurses?|nurse coordinators?"),
+    ("Pharmacist", r"pharmacists?"),
+    ("Unblinded staff", r"unblinded (site |study )?(staff|personnel|pharmacists?|team|members?|individuals?|persons?)"),
+    ("Rater", r"\braters?\b|(blinded|independent) (assessors?|evaluators?)"),
+    ("Phlebotomist", r"phlebotomists?"),
+    ("Laboratory staff", r"laboratory (technicians?|personnel|staff)"),
+    ("Radiologist", r"radiologists?"),
+]
+
+# A stated qualification is quoted from the protocol, never written by us, and
+# only when the sentence ties it to the role: "the rater must be certified in
+# ...", "coordinators should have completed GCP training", or "a
+# board-certified radiologist". "The investigator keeps a list of qualified
+# persons" doesn't count: there the qualification belongs to someone else.
+QUAL_BE = (
+    r"(?:(?:appropriately|suitably|medically|adequately|fully) )?"
+    r"(?:board[- ]certified|qualified|licensed|certified|credentialed|trained|experienced)"
+    r"(?: and (?:trained|experienced|licensed|qualified|certified))?(?: (?:in|to|by|as|for|on) [^.;,]{3,60})?"
+)
+QUAL_HAVE = (
+    r"(?:(?:completed|received|documented|current|appropriate|relevant|adequate|prior|formal) )*(?:[\w-]+ ){0,2}"
+    r"(?:training|certification|licen[cs]e|licensure|experience|degree|qualifications?)\b[^.;,]{0,60}"
+)
+QUAL_LINK = (
+    r"[^.;]{0,40}?\b(?:must|shall|should|will|is required to|are required to|who (?:is|are|has|have|must)|is|are)"
+    r"\s+(?:(?:be|have|hold|possess)\s+)?"
+)
+
+
+def _qualification(pattern, pages, skip):
+    """The first qualification the protocol states for the role, and its page."""
+    after = re.compile(rf"(?:{pattern}){QUAL_LINK}(?P<q>{QUAL_BE}|{QUAL_HAVE})", re.I)
+    before = re.compile(rf"(?P<q>board[- ]certified|licensed|certified|credentialed)\s+(?:{pattern})", re.I)
+    for i, text in enumerate(pages):
+        if i in skip:
+            continue
+        text = re.sub(r"\s+", " ", text)
+        m = after.search(text) or before.search(text)
+        if m:
+            return m.group("q").strip(), i + 1
+    return None, None
+
+
+def staffing_items(pages, flat_pages, skip):
+    items = []
+    for role, pat in STAFFING:
+        found, best = _scan(pat, flat_pages, skip)
+        if not found:
+            continue
+        qual, q_page = _qualification(pat, pages, skip)
+        note = _pages_note(found)
+        if qual:
+            note += f" Qualification quoted from page {q_page}."
+        items.append({
+            "role": role,
+            "qualifications": qual,
+            "source_page": best,
+            "confidence": _confidence(len(found)),
+            "notes": note,
+        })
+    return items
+
+
+# ---------- schedule of activities ----------
+
+def _schedule_note(row: Row, visits) -> str:
+    names = {v["id"]: v["name"] for v in visits}
+    note = f"Schedule of Activities, page {row.page}, row \"{row.name}\"."
+    if row.conditional:
+        note += " Marked as conditional or optional at " + ", ".join(names[v] for v in row.conditional) + "."
+    for text, where in row.unknown.items():
+        note += f" Unrecognized entry \"{text}\" at {', '.join(where)}; those visits aren't tagged."
+    if not row.visits and not row.unknown:
+        note += " No visit marks in this row."
+    return note
+
+
+def schedule_procedures(procedures, schedule: Optional[Schedule]):
+    """Tag procedures with schedule visits, keeping every keyword procedure.
+
+    A schedule row that matches a keyword procedure adds its visits to that
+    procedure (name, page and confidence stay as found by keyword). Rows that
+    match none become new procedures named as in the table.
+    """
+    if not schedule:
+        return procedures
+    patterns = {r[0]: re.compile(r[-1], re.I) for r in PROCEDURES}
+    order = {v["id"]: i for i, v in enumerate(schedule.visits)}
+    out = [dict(p) for p in procedures]
+    for row in schedule.rows:
+        matched = [p for p in out if p["name"] in patterns and patterns[p["name"]].search(_flat(row.name))]
+        note = _schedule_note(row, schedule.visits)
+        for p in matched:
+            p["visits"] = sorted(set(p["visits"]) | set(row.visits), key=order.get)
+            p["notes"] = f"{p['notes']} {note}"
+        if not matched:
+            category = next((r[1] for r in PROCEDURES if re.search(r[-1], _flat(row.name), re.I)), row.section)
+            out.append({
+                "name": row.name,
+                "category": category,
+                "visits": list(row.visits),
+                "source_page": row.page,
+                "confidence": 0.5 if not row.visits else 0.6 if row.unknown else 0.75,
+                "notes": note,
+            })
+    return out
+
+
+# ---------- review flags ----------
+
+def _plural(n, word):
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
+def section_reviews(plan: dict, schedule: Optional[Schedule]) -> dict:
+    """A review flag, with a reason, for each section keyword search can't vouch for."""
+    flags = {}
+    if not schedule:
+        flags["visits"] = (
+            "No Schedule of Activities table could be read (it may be scanned, or laid out without "
+            "table lines). Add the visits by hand."
+        )
+        flags["procedures"] = (
+            "Procedures were found by keyword only and aren't linked to visits, because no "
+            "Schedule of Activities table could be read."
+        )
+    else:
+        unknown = schedule.unknown_entries
+        odd = [v["name"] for v in schedule.visits if v["confidence"] < 0.8]
+        if odd:
+            flags["visits"] = f"{_plural(len(odd), 'column heading')} in the schedule table don't look like visits. Check them."
+        if unknown:
+            examples = ", ".join(f'"{t}"' for t in list(dict.fromkeys(unknown))[:3])
+            flags["procedures"] = (
+                f"{_plural(len(unknown), 'schedule entry')} weren't recognized as marks (for example {examples}), "
+                "so those visits aren't tagged. Check them against the schedule."
+            ).replace("entrys", "entries")
+    if not plan["staffing"]:
+        flags["staffing"] = "No site roles were found by keyword search. Add the study team by hand."
+    flags["billing"] = (
+        "Billing designations usually come from the clinical trial agreement and budget, not the protocol. "
+        "Enter them by hand."
+    )
+    for key in ("procedures", "safety", "equipment", "technology"):
+        if not plan[key] and key not in flags:
+            flags[key] = "Nothing was found by keyword search. Check the protocol and add items by hand."
+    if not plan["pharmacy"]["items"]:
+        flags["pharmacy"] = (
+            "No study drug handling was found by keyword search. Check whether the study needs pharmacy support."
+        )
+    return {key: {"needs_review": True, "reason": reason} for key, reason in flags.items()}
+
+
 # ---------- plan ----------
 
 def parse_pdf(
@@ -557,7 +723,12 @@ def plan_from_parsed(parsed: ParsedDocument) -> dict:
         keyword_items(PHARMACY, flat_pages, skip, lambda r: {"item": r[0]}) if pharmacy_involved else []
     )
 
-    return {
+    schedule = read_schedule(doc, pages, skip, flags)
+    keyword_procedures = keyword_items(
+        PROCEDURES, flat_pages, skip, lambda r: {"name": r[0], "category": r[1], "visits": []}
+    )
+
+    plan = {
         "id": registry_id or filename,
         "is_sample": False,
         "extraction": "keyword",
@@ -574,14 +745,14 @@ def plan_from_parsed(parsed: ParsedDocument) -> dict:
             "duration": None,
             "pages": len(pages),
         },
-        "visits": [],
-        "procedures": keyword_items(
-            PROCEDURES, flat_pages, skip, lambda r: {"name": r[0], "category": r[1], "visits": []}
-        ),
-        "staffing": [],
+        "visits": schedule.visits if schedule else [],
+        "procedures": schedule_procedures(keyword_procedures, schedule),
+        "staffing": staffing_items(pages, flat_pages, skip),
         "safety": safety_items(flat_pages, skip),
         "billing": [],
         "equipment": keyword_items(EQUIPMENT, flat_pages, skip, lambda r: {"item": r[0], "purpose": r[1]}),
         "pharmacy": {"involved": pharmacy_involved, "items": pharmacy_items},
         "technology": keyword_items(TECHNOLOGY, flat_pages, skip, lambda r: {"system": r[0], "purpose": r[1]}),
     }
+    plan["section_reviews"] = section_reviews(plan, schedule)
+    return plan
