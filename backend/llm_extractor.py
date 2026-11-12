@@ -88,8 +88,11 @@ training or certifications it requires. Give fte only if the protocol states a \
 number; otherwise null. Do not estimate effort.
 7. Do not include any information about individual participants.
 
-When you are done, call the submit_plan tool once with the complete plan. Do \
-not reply with text.
+When you are done, call the submit_plan tool exactly once with the complete \
+plan: every field (protocol, visits, procedures, staffing, safety, billing, \
+equipment, pharmacy_involved, pharmacy_items, technology) in that single call. \
+You only get one call; there is no follow-up, and a partial plan is rejected. \
+Use empty lists for sections the protocol doesn't cover. Do not reply with text.
 """
 
 # The plan comes back as this tool's input. Not strict on purpose: a strict
@@ -397,7 +400,10 @@ class ClaudeExtractor:
                 tools=[PLAN_TOOL],
                 # "auto", not forced: current models reject a forced
                 # tool_choice. The system prompt tells the model to call it.
-                tool_choice={"type": "auto"},
+                # One call only: on longer protocols the model otherwise
+                # splits the plan across several partial submit_plan calls
+                # and waits for replies that never come.
+                tool_choice={"type": "auto", "disable_parallel_tool_use": True},
                 output_config={"effort": self.effort},
             )
         except LLMError:

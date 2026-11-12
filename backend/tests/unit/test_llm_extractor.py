@@ -62,11 +62,14 @@ def test_request_sends_page_numbered_text_and_the_schema(extractor, llm_mode, ll
     prompt = call["messages"][0]["content"]
     assert '<page n="1">' in prompt and "Synthetic Test Study of Drug X" in prompt
     assert call["tools"] == [llm_extractor.PLAN_TOOL]
-    assert call["tool_choice"] == {"type": "auto"}  # a forced tool_choice is rejected by current models
+    # Not forced (current models reject that), and one call only: otherwise the
+    # model splits a long plan across several partial submit_plan calls.
+    assert call["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+    assert "exactly once with the complete" in call["system"]
     assert call["model"] == "claude-opus-5-5"
     assert call["output_config"] == {"effort": "medium"}
     assert "Never fill a gap" in call["system"]  # the no-invention rule
-    assert llm_mode.options[0]["timeout"] == 50.0
+    assert llm_mode.options[0]["timeout"] == 100.0
 
 
 def test_plan_schema_is_sent_as_a_non_strict_tool(extractor, llm_mode, llm_payload, parsed):

@@ -28,7 +28,7 @@ The backend reads its settings from environment variables, or from `backend/.env
 | `EXTRACTOR` | `keyword` | `keyword` needs no key and no network. `llm` uses the Claude API. |
 | `LLM_API_KEY` | none | Required when `EXTRACTOR=llm`. |
 | `LLM_MODEL` | `claude-opus-5-5` | Claude model used for extraction. |
-| `LLM_TIMEOUT` | `50` | How long to wait for one LLM response. |
+| `LLM_TIMEOUT` | `100` | How long to wait for one LLM response. |
 | `CORA_LLM_EFFORT` | `medium` | `low` to `max`. Higher is slower and costs more. |
 | `CORA_MAX_PAGES` | `150` | Longer protocols are rejected with HTTP 413. |
 | `CORA_REQUEST_TIMEOUT_SECONDS` | `120` | Upper limit for one upload; after it the API answers HTTP 504. |
