@@ -1,8 +1,17 @@
 """Claude-based extractor. The only module that imports the Anthropic SDK.
 
-Flow: page-numbered protocol text -> one Claude request with a structured
-output schema (llm_schema.LLMPlan) -> every item re-checked in code -> a
+Flow: page-numbered protocol text -> one Claude request that returns the plan
+through the submit_plan tool (its input schema is llm_schema.LLMPlan) -> the
+tool input validated against LLMPlan -> every item re-checked in code -> a
 validated models.OperationalPlan.
+
+Why a tool and not structured outputs (output_format): the API compiles a
+structured-output schema into a grammar, and LLMPlan is too large for that
+("The compiled grammar is too large"), on every model. A tool's input schema
+is not compiled when the tool isn't strict, so the full plan fits in one
+request. The model sees the whole protocol once, which keeps visit ids
+consistent across visits, procedures and billing. The schema is then enforced
+here instead: LLMPlan.model_validate below, and the strict models after it.
 
 Two rules from the project spec shape this file:
 - The LLM must not invent values. The prompt says so, and the code enforces
@@ -78,7 +87,18 @@ visits, leave visits empty and lower the confidence.
 training or certifications it requires. Give fte only if the protocol states a \
 number; otherwise null. Do not estimate effort.
 7. Do not include any information about individual participants.
+
+When you are done, call the submit_plan tool once with the complete plan. Do \
+not reply with text.
 """
+
+# The plan comes back as this tool's input. Not strict on purpose: a strict
+# tool's schema is compiled into a grammar, and LLMPlan is too large for that.
+PLAN_TOOL = {
+    "name": "submit_plan",
+    "description": "Submit the operational plan extracted from the protocol. Call this exactly once with the complete plan.",
+    "input_schema": LLMPlan.model_json_schema(),
+}
 
 # Fixed, safe sentences for each failure. The user sees these; they never
 # contain the provider's response, the key, or protocol text.
@@ -188,8 +208,7 @@ def map_error(exc: Exception) -> LLMError:
             return LLMError("timeout", retryable=True, **common)
         return LLMError("rejected", **common)  # other 4xx: retrying won't help
     if isinstance(exc, (ValidationError, ValueError)):
-        # The SDK validates the model's JSON against LLMPlan; this is what it
-        # raises for malformed JSON or JSON that doesn't fit the schema.
+        # Malformed JSON, or JSON that doesn't fit LLMPlan.
         return LLMError("invalid_output")
     return LLMError("unexpected")
 
@@ -370,14 +389,15 @@ class ClaudeExtractor:
             timeout = min(timeout, remaining)
 
         try:
-            response = self.client.with_options(timeout=timeout).messages.parse(
+            response = self.client.with_options(timeout=timeout).messages.create(
                 model=self.model,
                 max_tokens=MAX_OUTPUT_TOKENS,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
-                # Structured output: the API constrains the reply to this
-                # schema and the SDK parses it into an LLMPlan.
-                output_format=LLMPlan,
+                tools=[PLAN_TOOL],
+                # "auto", not forced: current models reject a forced
+                # tool_choice. The system prompt tells the model to call it.
+                tool_choice={"type": "auto"},
                 output_config={"effort": self.effort},
             )
         except LLMError:
@@ -391,18 +411,19 @@ class ClaudeExtractor:
         if stop == "max_tokens":
             raise LLMError("truncated")
 
-        llm_plan = _parsed_output(response)
-        if not isinstance(llm_plan, LLMPlan):
-            raise LLMError("invalid_output")
+        raw = _plan_input(response)
+        if raw is None:
+            raise LLMError("invalid_output")  # answered in text, no plan
         try:
+            llm_plan = LLMPlan.model_validate(raw)
             return to_plan(llm_plan, parsed, self.model)
         except ValidationError:
             raise LLMError("invalid_output") from None
 
 
-def _parsed_output(response: Any) -> Any:
-    """The parsed LLMPlan from the first text block of the response."""
+def _plan_input(response: Any) -> Any:
+    """The input of the first submit_plan tool call in the response, or None."""
     for block in getattr(response, "content", None) or []:
-        if getattr(block, "type", None) == "text":
-            return getattr(block, "parsed_output", None)
+        if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == PLAN_TOOL["name"]:
+            return getattr(block, "input", None)
     return None

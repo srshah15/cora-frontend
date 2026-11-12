@@ -21,7 +21,6 @@ from types import SimpleNamespace
 import pymupdf
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import TypeAdapter
 
 from main import app
 
@@ -172,15 +171,15 @@ class FakeLLM:
     """Stands in for anthropic.Anthropic. Plays back a script of responses.
 
     Each queued entry is one call's outcome:
-    - a dict  -> the model's JSON answer
-    - a str   -> the model's raw text (use for malformed JSON)
+    - a dict  -> the model calls submit_plan with this as the tool input
+    - a str   -> the model answers in text and never calls the tool
     - an Exception -> raised, as the SDK would raise it
-    - ("stop", reason) -> a response with that stop_reason and no parsed output
+    - ("stop", reason) -> a response with that stop_reason and no content
     """
 
     def __init__(self):
         self.script = []
-        self.calls = []    # keyword arguments of every messages.parse call
+        self.calls = []    # keyword arguments of every messages.create call
         self.options = []  # keyword arguments of every with_options call
 
     def queue(self, *entries):
@@ -196,7 +195,7 @@ class FakeLLM:
         self.options.append(kwargs)
         return self
 
-    def parse(self, **kwargs):
+    def create(self, **kwargs):
         self.calls.append(kwargs)
         assert self.script, "FakeLLM was called more times than the test queued responses for"
         entry = self.script.pop(0)
@@ -204,12 +203,13 @@ class FakeLLM:
             raise entry
         if isinstance(entry, tuple) and entry[0] == "stop":
             return SimpleNamespace(stop_reason=entry[1], content=[])
-        text = entry if isinstance(entry, str) else json.dumps(entry)
-        # Exactly what the real SDK does with the reply: validate the JSON
-        # against the output_format model (raises pydantic.ValidationError).
-        parsed = TypeAdapter(kwargs["output_format"]).validate_json(text)
-        block = SimpleNamespace(type="text", text=text, parsed_output=parsed)
-        return SimpleNamespace(stop_reason="end_turn", content=[block])
+        if isinstance(entry, str):
+            block = SimpleNamespace(type="text", text=entry)
+            return SimpleNamespace(stop_reason="end_turn", content=[block])
+        # Like the real API: the tool input arrives already parsed from JSON.
+        tool = kwargs["tools"][0]["name"]
+        block = SimpleNamespace(type="tool_use", id="toolu_test", name=tool, input=json.loads(json.dumps(entry)))
+        return SimpleNamespace(stop_reason="tool_use", content=[block])
 
 
 @pytest.fixture
