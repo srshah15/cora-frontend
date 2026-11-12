@@ -29,8 +29,10 @@ SAMPLE_PDF = FIXTURES / "sample_protocol.pdf"
 #     > backend/tests/fixtures/sample_plan.json
 SAMPLE_PLAN = FIXTURES / "sample_plan.json"
 
-API_KEY_VARS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")
+API_KEY_VARS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "LLM_API_KEY")
 
+# Cleared so tests always start in keyword mode with defaults
+SETTINGS_VARS = ("EXTRACTOR", "LLM_MODEL", "LLM_TIMEOUT", "LLM_RETRIES")
 
 class NetworkAccessError(RuntimeError):
     """Raised when a test tries to open a network connection."""
@@ -53,7 +55,7 @@ def no_network(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_api_keys(monkeypatch):
-    for var in API_KEY_VARS:
+    for var in API_KEY_VARS + SETTINGS_VARS:
         monkeypatch.delenv(var, raising=False)
 
 

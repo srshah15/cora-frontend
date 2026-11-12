@@ -1,15 +1,30 @@
 """FastAPI backend for CORA: receives a protocol PDF and returns a draft operational plan."""
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Response
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
+from config import load_settings
 from docx_export import DOCX_MEDIA_TYPE, DocxExportRequest, build_plan_docx, export_filename
-from extract import ExtractionError, extract_plan
+from extract import ExtractionError
+from extractors import Extractor, build_extractor
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # matches the frontend limit
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Fails fast with a ConfigError (e.g. EXTRACTOR=llm without a key) before
+    # the server accepts any requests.
+    app.state.extractor = build_extractor(load_settings())
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+def get_extractor(request: Request) -> Extractor:
+    """The extractor chosen at startup. Tests override this dependency."""
+    return request.app.state.extractor
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,7 +47,10 @@ def health():
 
 
 @app.post("/api/protocols")
-async def upload_protocol(file: UploadFile = File(...)):
+async def upload_protocol(
+    file: UploadFile = File(...), 
+    extractor: Extractor = Depends(get_extractor)
+):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
             status_code=400,
@@ -55,9 +73,11 @@ async def upload_protocol(file: UploadFile = File(...)):
 
     try:
         # PDF parsing is CPU-bound, so keep it off the event loop.
-        return await run_in_threadpool(extract_plan, contents, file.filename)
+        return await run_in_threadpool(extractor.extract, contents, file.filename)
     except ExtractionError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    except NotImplementedError as e:
+        raise HTTPException(status_code=501, detail=str(e))
 
 
 @app.post("/api/export/docx")

@@ -2,6 +2,10 @@ fastapi==0.143.0
 uvicorn==0.54.0
 python-multipart==0.0.32
 pymupdf==1.28.2
+
+# LLM extraction (Claude) and loading backend/.env
+anthropic==2.3.0
+python-dotenv==1.2.4
 python-docx==1.2.0
 
 # Direct dependency of models.py (the operational-plan schema). Pinned because
