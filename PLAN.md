@@ -1,5 +1,14 @@
 # CORA implementation plan: LLM extraction, persistence, React frontend, evaluation
 
+## Status (2026-11-11)
+
+| Phase | State |
+| --- | --- |
+| 1. Extraction pipeline (#16, #18, #20, #22, #31, #21, #23) | Done |
+| 2. Persistence (#25, #26, #27) | Done |
+| 3. Frontend (#28, #29, #21/#25/#26 frontend, #34, #32) | Done, including CI (`.github/workflows/ci.yml`). **Pending:** parity sign-off, then delete `frontend/legacy/` (#28 PR 5). |
+| 4. Evaluation (#15, #35, #33) | `eval.py`, the test-set layout and answer-file format, and `docs/manual-test-plan.md` are done. Answer files cover all 8 categories (decision on open question 4). **Pending:** choose and download the 3 to 5 protocols (including NCT03872401), write their `expected.json`, and verify them by hand. |
+
 ## Context
 
 CORA turns clinical trial protocol PDFs into draft operational plans. Today the backend

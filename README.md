@@ -34,6 +34,7 @@ The backend reads its settings from environment variables, or from `backend/.env
 | `CORA_REQUEST_TIMEOUT_SECONDS` | `120` | Upper limit for one upload; after it the API answers HTTP 504. |
 | `CORA_MAX_OCR_PAGES` | `50` | Most scanned pages read by OCR in one upload. |
 | `CORS_ORIGINS` | none | Comma-separated extra origins (the deployed frontend). |
+| `DATABASE_URL` | none | PostgreSQL URL (Supabase). Turns on saved plans and reviews; run `alembic upgrade head` in `backend/` first. Without it, nothing is stored. |
 
 If `CORA_EXTRACTOR=claude` and the key is missing, the server stops at startup with a message naming the variable.
 
@@ -56,15 +57,18 @@ OCR uses Tesseract through PyMuPDF. Without it, text PDFs work as usual and scan
 
 If Tesseract is installed somewhere unusual, set `TESSDATA_PREFIX` to its `tessdata` folder.
 
-The backend URL defaults to `http://localhost:8000`. Point it somewhere else with `?api=https://your-app.onrender.com`, or edit `config.js`.
-
-In a second terminal:
+### Frontend
+The frontend is a React app built with Vite and Tailwind. It needs Node 22 or newer. In a second terminal:
 
 ```bash
 cd frontend
-python3 -m http.server 5173
+npm ci
+cp .env.example .env    # optional; sets VITE_API_BASE and the upload timeout
+npm run dev
 ```
-Open http://localhost:5173.
+Open http://localhost:5173. The backend URL defaults to `http://localhost:8000`. Change it with `VITE_API_BASE` in `frontend/.env`, or add `?api=https://your-app.onrender.com` to the page URL to change it for one tab.
+
+The old plain-HTML frontend is kept in `frontend/legacy/` until the React app is signed off. Run it with `python3 -m http.server 5174` from that folder.
 
 ## Running tests
 The backend tests are the automated regression baseline. They don't need an API key or network access, and they don't need the server running.
@@ -103,8 +107,32 @@ python tests/fixtures/make_fixtures.py
 
 Tests check for known strings from the fixture, such as "Synthetic Test Study of Drug X" and `NCT00000000`, so update them if you change those.
 
+### Frontend tests
+```bash
+cd frontend
+npm test          # Vitest; fetch is stubbed, so no backend is needed
+npm run build
+```
+
+### CI
+`.github/workflows/ci.yml` runs on every push and pull request. The backend job uses Python 3.13 with Tesseract installed, so the OCR tests run too, and runs `pytest`. The frontend job uses Node 22 and runs `npm ci`, `npm test` and `npm run build`. Neither job needs secrets.
+
+### Accuracy evaluation
+`backend/eval.py` scores the extractors against the hand-checked protocols in `backend/tests/fixtures/protocols/` (layout and answer-file format in that folder's README):
+
+```bash
+cd backend
+python eval.py                 # keyword extractor; the LLM column says "not run"
+python eval.py --live          # also Claude: needs ANTHROPIC_API_KEY, shows the estimated cost and asks first
+python eval.py --allow-draft   # include unverified answer files, every row labeled as not a result
+```
+
+For each category (visits, procedures, staffing, safety, billing, equipment, pharmacy, technology) it prints precision (matched / extracted) and recall (matched / expected). Names are normalized first: lowercase, no punctuation, plurals and a few synonyms folded together. Two names match when at least half their words are shared, and each item can match only one other. Procedure-to-visit links are scored as (procedure, visit) pairs after the visits are aligned. The module docstring has the details. Unverified (draft) answer files are never reported as results.
+
 ### Manual check
 Click **Try a sample protocol** to load fictional results, then **Download PDF** to check export. To check the full workflow, upload a public, text-based protocol PDF with the backend running.
+
+For a full hands-on test pass, copy the blank template [docs/manual-test-plan.md](docs/manual-test-plan.md) and fill it in as you go.
 
 ## API and Data Format
 
