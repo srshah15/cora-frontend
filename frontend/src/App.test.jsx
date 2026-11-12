@@ -238,6 +238,9 @@ describe("results", () => {
   it("shows a section-level warning from the backend", async () => {
     await uploadPlan({ ...PLAN, section_reviews: { staffing: { needs_review: true, reason: "1 item(s) were left out." } } });
     expect(within(section("Staffing")).getByText("Check this section: 1 item(s) were left out.")).toBeInTheDocument();
+    // The badge agrees with the warning instead of saying "Looks good".
+    expect(within(section("Staffing")).getByText("Needs check")).toBeInTheDocument();
+    expect(within(section("Staffing")).queryByText("Looks good")).not.toBeInTheDocument();
   });
 
   it("says when a saved plan was reused", async () => {

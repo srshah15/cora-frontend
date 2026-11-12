@@ -61,6 +61,10 @@ MAX_OUTPUT_TOKENS = 16000
 MAX_INPUT_CHARS = 2_000_000
 
 CORE_SECTIONS = ("visits", "procedures", "staffing")
+# A protocol at least this long always has a visit schedule or procedures. A
+# plan with neither means the model skipped the work, not that the protocol is
+# empty. (The 1-page test fixture is below this, so it can't trip the rule.)
+MIN_PAGES_FOR_CONTENT = 3
 
 SYSTEM_PROMPT = """\
 You extract operational requirements from a clinical trial protocol so that a \
@@ -92,7 +96,10 @@ When you are done, call the submit_plan tool exactly once with the complete \
 plan: every field (protocol, visits, procedures, staffing, safety, billing, \
 equipment, pharmacy_involved, pharmacy_items, technology) in that single call. \
 You only get one call; there is no follow-up, and a partial plan is rejected. \
-Use empty lists for sections the protocol doesn't cover. Do not reply with text.
+Read the whole protocol before you call it: nearly every protocol has a \
+schedule of activities, procedures and study staff, so fill those sections in \
+full. Leave a section empty only when the protocol says nothing about it. Do \
+not reply with text.
 """
 
 # The plan comes back as this tool's input. Not strict on purpose: a strict
@@ -114,6 +121,7 @@ WARNINGS = {
     "rejected": "The AI service rejected the request, so this plan was built by keyword search only. Ask your administrator to check the model name (LLM_MODEL) and the account's access.",
     "invalid_output": "The AI service returned a plan CORA couldn't read, so this plan was built by keyword search only. Try uploading again.",
     "refused": "The AI service declined to process this document, so this plan was built by keyword search only.",
+    "empty_plan": "The AI service returned an empty plan (no visits or procedures), so this plan was built by keyword search only. Try uploading again.",
     "truncated": "The AI service's answer was cut off before it finished, so this plan was built by keyword search only. Try uploading again.",
     "too_long": "This protocol has too much text for the AI service, so this plan was built by keyword search only. Remove appendices and upload again.",
     "deadline": "There wasn't enough time left to use the AI service, so this plan was built by keyword search only. Try again.",
@@ -422,9 +430,14 @@ class ClaudeExtractor:
             raise LLMError("invalid_output")  # answered in text, no plan
         try:
             llm_plan = LLMPlan.model_validate(raw)
-            return to_plan(llm_plan, parsed, self.model)
+            plan = to_plan(llm_plan, parsed, self.model)
         except ValidationError:
             raise LLMError("invalid_output") from None
+        if len(parsed.pages) >= MIN_PAGES_FOR_CONTENT and not plan.visits and not plan.procedures:
+            # Valid but empty: the model took a shortcut. That varies from run
+            # to run, so the pipeline's single retry is likely to help.
+            raise LLMError("empty_plan", retryable=True)
+        return plan
 
 
 def _plan_input(response: Any) -> Any:

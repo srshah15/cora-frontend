@@ -180,3 +180,49 @@ def test_timings_are_recorded_for_each_stage(llm_mode, llm_payload, sample_pdf_b
     t = _run(sample_pdf_bytes).timings
     assert t.ingest_ms > 0 and t.extract_ms > 0 and t.validate_ms > 0
     assert (t.pages, t.method, t.fallback) == (1, "llm", False)
+
+
+# ---------- empty plans ----------
+
+def _empty(payload):
+    payload["visits"], payload["procedures"] = [], []
+    return payload
+
+
+# Enough text per page to pass the "readable text" check during ingest.
+_LINE = "Participants attend clinic visits for physical exams, blood draws and ECGs.\n"
+THREE_PAGES = [title + "\n" + _LINE * 12 for title in ("Protocol title page", "Schedule of activities", "Safety reporting")]
+
+
+def test_empty_plan_is_retried_once_then_falls_back_with_its_own_message(llm_mode, llm_payload, make_pdf):
+    # Seen with a real model: a valid call with the header filled in and no
+    # visits or procedures. It must not be shown as a successful LLM plan.
+    llm_mode.queue(_empty(llm_payload), _empty(llm_payload), llm_payload)  # a third call would be a bug
+    result = _run(make_pdf(THREE_PAGES))
+    info = result.plan.extraction_info
+    assert len(llm_mode.calls) == 2
+    assert info.fallback is True and info.reason == "empty_plan"
+    assert "empty plan" in info.warning and "keyword" in info.warning
+
+
+def test_empty_plan_then_full_plan_returns_the_llm_plan(llm_mode, llm_payload, make_pdf):
+    import copy
+    llm_mode.queue(_empty(copy.deepcopy(llm_payload)), llm_payload)
+    plan = _run(make_pdf(THREE_PAGES)).plan
+    assert plan.extraction == "llm" and plan.extraction_info.fallback is False
+    assert [v.id for v in plan.visits] == ["V1", "V2", "V3"]
+
+
+def test_short_document_may_have_an_empty_plan(llm_mode, llm_payload, sample_pdf_bytes):
+    # One page can genuinely have no schedule; that is flagged, not retried.
+    llm_mode.queue(_empty(llm_payload))
+    plan = _run(sample_pdf_bytes).plan
+    assert plan.extraction == "llm" and len(llm_mode.calls) == 1
+    assert plan.section_reviews.visits.needs_review
+
+
+def test_plan_with_only_procedures_is_not_empty(llm_mode, llm_payload, make_pdf):
+    llm_payload["visits"] = []
+    llm_mode.queue(llm_payload)
+    plan = _run(make_pdf(THREE_PAGES)).plan
+    assert plan.extraction == "llm" and len(llm_mode.calls) == 1

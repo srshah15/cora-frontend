@@ -114,7 +114,15 @@ function Section({ section, ctx, open, onToggle }) {
             {section.label}
           </button>
         </h2>
-        {n ? <span className="pill pill-warn">{n} to review</span> : <span className="pill pill-ok">Looks good</span>}
+        {n ? (
+          <span className="pill pill-warn">{n} to review</span>
+        ) : flag?.needs_review ? (
+          // A flagged section (e.g. nothing extracted) must not look fine just
+          // because it has no flagged items in it.
+          <span className="pill pill-warn">Needs check</span>
+        ) : (
+          <span className="pill pill-ok">Looks good</span>
+        )}
       </header>
       {/* Collapsed sections stay in the page (hidden), so they remain reachable and printable. */}
       <div id={`body-${section.key}`} hidden={!open}>
