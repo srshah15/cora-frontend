@@ -20,7 +20,7 @@ Design notes:
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -48,6 +48,7 @@ class ProtocolMetadata(BaseModel):
     title: Optional[str] = None
     short_title: Optional[str] = None
     registry_id: Optional[str] = None  # NCT number, when present
+    protocol_number: Optional[str] = None  # the sponsor's own protocol id, when stated
     phase: Optional[str] = None
     sponsor: Optional[str] = None
     therapeutic_area: Optional[str] = None
@@ -71,6 +72,10 @@ class Visit(BaseModel):
     day: Optional[str] = None     # e.g. "Day 1", "Day -28 to -1"
     window: Optional[str] = None  # e.g. "±3 days"
     type: Optional[str] = None    # e.g. "Clinic", "Phone" (free text label)
+    # Optional so plans made before LLM extraction (and the sample) still validate.
+    notes: Optional[str] = None
+    source_page: Optional[int] = Field(default=None, ge=1)
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
 class Procedure(BaseModel):
@@ -92,6 +97,7 @@ class StaffingRole(BaseModel):
     responsibilities: Optional[str] = None
     qualifications: Optional[str] = None  # stated certs / qualifications, if any
     notes: Optional[str] = None
+    source_page: Optional[int] = Field(default=None, ge=1)
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
@@ -124,6 +130,7 @@ class EquipmentItem(BaseModel):
     item: str
     purpose: Optional[str] = None
     notes: Optional[str] = None
+    source_page: Optional[int] = Field(default=None, ge=1)
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
@@ -131,12 +138,14 @@ class TechnologyItem(BaseModel):
     system: str
     purpose: Optional[str] = None
     notes: Optional[str] = None
+    source_page: Optional[int] = Field(default=None, ge=1)
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
 class PharmacyItem(BaseModel):
     item: str
     notes: Optional[str] = None
+    source_page: Optional[int] = Field(default=None, ge=1)
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
@@ -161,6 +170,23 @@ class SectionReviews(BaseModel):
     technology: ReviewFlag = Field(default_factory=ReviewFlag)
 
 
+class ExtractionInfo(BaseModel):
+    """How this plan was produced, so the UI can say so plainly.
+
+    Added with the LLM pipeline. Optional on the plan, so older clients and
+    stored plans without it remain valid.
+    """
+
+    method: str                    # "llm" or "keyword": what produced the plan
+    fallback: bool = False         # True when the LLM was wanted but couldn't be used
+    reason: Optional[str] = None   # short code for why, e.g. "timeout", "invalid_key"
+    warning: Optional[str] = None  # sentence to show the user when extraction was limited
+    model: Optional[str] = None    # LLM model name, when one was used
+    # Which method produced each section: "llm", "keyword" or "none".
+    sections: Dict[str, str] = Field(default_factory=dict)
+    ocr_pages: int = Field(default=0, ge=0)  # pages read by OCR instead of the text layer
+
+
 class OperationalPlan(BaseModel):
     """Top-level operational plan: protocol metadata plus every section.
 
@@ -171,6 +197,7 @@ class OperationalPlan(BaseModel):
     id: Optional[str] = None
     is_sample: bool = False
     extraction: Optional[str] = None  # e.g. "keyword", "llm"
+    extraction_info: Optional[ExtractionInfo] = None
 
     protocol: ProtocolMetadata = Field(default_factory=ProtocolMetadata)
 

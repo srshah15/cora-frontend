@@ -1,0 +1,30 @@
+/* Tailwind v4, without its "preflight" reset.
+   Preflight restyles headings, lists, buttons and tables. The component
+   styles in app.css were written against browser defaults, so leaving the
+   reset out keeps the ported screens looking exactly as before. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Expose the app's colour variables as Tailwind colours, so utilities such as
+   bg-surface-2, text-ink-2 or border-line follow the light/dark theme. */
+@theme inline {
+  --color-page: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-border);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-danger: var(--danger);
+}
+
+/* Component styles carried over from the original frontend (themes, tables,
+   review screen, print rules). */
+@import "./app.css";

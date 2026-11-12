@@ -2,12 +2,17 @@ fastapi==0.143.0
 uvicorn==0.54.0
 python-multipart==0.0.32
 pymupdf==1.28.2
-
-# LLM extraction (Claude) and loading backend/.env
-anthropic==2.3.0
-python-dotenv==1.2.4
 python-docx==1.2.0
+
+# LLM extraction (llm_extractor.py) and loading backend/.env (main.py).
+anthropic==2.8.0
+python-dotenv==1.2.4
 
 # Direct dependency of models.py (the operational-plan schema). Pinned because
 # the schema relies on Pydantic v2 syntax. Previously only transitive via FastAPI.
 pydantic==2.14.2
+
+# Persistence (db.py, db_models.py, migrations/): ORM, migrations, Postgres driver.
+SQLAlchemy==2.1.8
+alembic==1.20.1
+psycopg[binary]==3.3.8

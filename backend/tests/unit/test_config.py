@@ -1,57 +1,66 @@
-"""Settings loading and validation (backend/config.py)."""
+"""Unit tests for environment-based configuration (backend/config.py)."""
 
 import pytest
 
-from config import DEFAULT_MODEL, ConfigError, load_settings
+import config
+from config import ConfigError, get_settings
 
 
-def test_defaults_to_keyword_with_no_env():
-    s = load_settings({})
+def test_defaults_need_no_environment():
+    s = get_settings()
     assert s.extractor == "keyword"
-    assert s.llm_api_key is None
-    assert s.llm_model == DEFAULT_MODEL
-    assert s.llm_timeout == 60.0
-    assert s.llm_retries == 2
+    assert s.anthropic_api_key is None
+    assert s.llm_model == config.DEFAULT_LLM_MODEL
+    assert s.llm_timeout_seconds == config.DEFAULT_LLM_TIMEOUT_SECONDS
 
 
-def test_llm_mode_reads_key_model_timeout_and_retries():
-    s = load_settings({
-        "EXTRACTOR": "LLM",
-        "LLM_API_KEY": " sk-test ",
-        "LLM_MODEL": "claude-haiku-5-5",
-        "LLM_TIMEOUT": "90",
-        "LLM_RETRIES": "0",
-    })
+def test_environment_overrides(monkeypatch):
+    monkeypatch.setenv("EXTRACTOR", "LLM")  # case-insensitive
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "some-other-model")
+    monkeypatch.setenv("LLM_TIMEOUT", "12.5")
+
+    s = get_settings()
     assert s.extractor == "llm"
-    assert s.llm_api_key == "sk-test"
-    assert s.llm_model == "claude-haiku-5-5"
-    assert s.llm_timeout == 90.0
-    assert s.llm_retries == 0
+    assert s.anthropic_api_key == "test-key"
+    assert s.llm_model == "some-other-model"
+    assert s.llm_timeout_seconds == 12.5
+
+
+def test_unknown_extractor_is_a_config_error(monkeypatch):
+    monkeypatch.setenv("EXTRACTOR", "gpt")
+    with pytest.raises(ConfigError, match="EXTRACTOR"):
+        get_settings()
+
+
+@pytest.mark.parametrize("value", ["abc", "0", "-5"])
+def test_bad_timeout_is_a_config_error(monkeypatch, value):
+    monkeypatch.setenv("LLM_TIMEOUT", value)
+    with pytest.raises(ConfigError, match="LLM_TIMEOUT"):
+        get_settings()
 
 
 @pytest.mark.parametrize("key", [None, "", "   "])
-def test_llm_mode_without_key_is_a_clear_config_error(key):
-    env = {"EXTRACTOR": "llm"}
+def test_llm_mode_without_key_is_a_clear_config_error(monkeypatch, key):
+    monkeypatch.setenv("EXTRACTOR", "llm")
     if key is not None:
-        env["LLM_API_KEY"] = key
-    with pytest.raises(ConfigError, match="LLM_API_KEY"):
-        load_settings(env)
+        # .env.example's "LLM_API_KEY=" loads as an empty string.
+        monkeypatch.setenv("LLM_API_KEY", key)
+
+    with pytest.raises(ConfigError) as err:
+        get_settings()
+    message = str(err.value)
+    assert "LLM_API_KEY" in message  # says what is missing
+    assert ".env" in message               # says where to fix it
 
 
-def test_keyword_mode_does_not_need_a_key():
-    assert load_settings({"EXTRACTOR": "keyword"}).extractor == "keyword"
+def test_keyword_mode_ignores_a_missing_key():
+    # No key and no EXTRACTOR: must not raise.
+    assert get_settings().extractor == "keyword"
 
 
-def test_unknown_extractor_rejected():
-    with pytest.raises(ConfigError, match="EXTRACTOR must be one of"):
-        load_settings({"EXTRACTOR": "gpt"})
-
-
-@pytest.mark.parametrize("value", ["soon", "0", "-5"])
-def test_bad_timeout_rejected(value):
-    with pytest.raises(ConfigError, match="LLM_TIMEOUT"):
-        load_settings({"LLM_TIMEOUT": value})
-
-
-def test_blank_model_falls_back_to_default():
-    assert load_settings({"LLM_MODEL": "  "}).llm_model == DEFAULT_MODEL
+def test_settings_repr_never_shows_the_key(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "sk-ant-very-secret")
+    text = repr(get_settings())
+    assert "sk-ant-very-secret" not in text
+    assert "<set>" in text

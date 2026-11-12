@@ -35,7 +35,31 @@ def make_sample_protocol(path: Path) -> None:
     doc.close()
 
 
+def make_scanned_protocol(path: Path) -> None:
+    """The same page as a picture: what a scanner produces.
+
+    The text page is rendered to a grayscale image and that image is placed on
+    an otherwise empty page, so the PDF has no text layer at all. Reading it
+    requires OCR.
+    """
+    src = pymupdf.open()
+    page = src.new_page()
+    page.insert_text((50, 72), SAMPLE_TEXT, fontsize=12)
+    pix = page.get_pixmap(dpi=200, colorspace=pymupdf.csGRAY)
+    src.close()
+
+    doc = pymupdf.open()
+    scan = doc.new_page()
+    scan.insert_image(scan.rect, pixmap=pix)
+    doc.save(path, deflate=True)
+    doc.close()
+
+
 if __name__ == "__main__":
-    out = FIXTURE_DIR / "sample_protocol.pdf"
-    make_sample_protocol(out)
-    print(f"Wrote {out}")
+    for name, make in (
+        ("sample_protocol.pdf", make_sample_protocol),
+        ("scanned_protocol.pdf", make_scanned_protocol),
+    ):
+        out = FIXTURE_DIR / name
+        make(out)
+        print(f"Wrote {out}")

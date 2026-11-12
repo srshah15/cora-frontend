@@ -437,3 +437,9 @@ kbd {
   body { background: #fff; }
   .card { box-shadow: none; break-inside: avoid; }
 }
+
+/* Shown when the LLM couldn't be used and the plan is keyword-only. */
+.extraction-warn {
+  border-left: 3px solid #b45309;
+  padding-left: 10px;
+}
