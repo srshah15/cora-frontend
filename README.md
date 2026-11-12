@@ -30,6 +30,19 @@ python3 -m http.server 5173
 ```
 Open http://localhost:5173.
 
+## Configuration
+Backend settings come from environment variables; `backend/.env` is loaded for local development (copy `backend/.env.example`). Real environment variables take precedence.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `EXTRACTOR` | `keyword` | `keyword` (rule-based, no key needed) or `llm` (Claude) |
+| `LLM_API_KEY` | none | Required when `EXTRACTOR=llm`; the server refuses to start without it |
+| `LLM_MODEL` | `claude-sonnet-5-5` | Claude model ID |
+| `LLM_TIMEOUT` | `60` | Per-request timeout for the Claude API |
+| `LLM_RETRIES` | `2` | SDK retries on transient errors |
+
+To add another model provider, implement the `Extractor` interface in `backend/extractors/` and add it to `build_extractor()`. `main.py` doesn't change.
+
 ## Running tests
 The backend tests are the automated regression baseline. They don't need an API key or network access, and they don't need the server running.
 
@@ -53,7 +66,7 @@ backend/tests/
     └── sample_protocol.pdf  # one-page synthetic protocol, no real data
 ```
 
-The fixtures in `conftest.py` block every outbound network connection and unset `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` for every test, so a real external call fails the test instead of going out. Extraction is keyword-based today. When an LLM step is added, its mock belongs in `conftest.py` too.
+The fixtures in `conftest.py` block every outbound network connection and unset `LLM_API_KEY` for every test, so a real external call fails the test instead of going out. Extraction is keyword-based today. When an LLM step is added, its mock belongs in `conftest.py` too.
 
 To regenerate the fixture PDF after you edit its text in `make_fixtures.py`, run this from `backend/`:
 
