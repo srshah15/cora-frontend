@@ -174,4 +174,4 @@ def test_live_cancel_sends_nothing(protocols_dir, llm_mode, monkeypatch, capsys)
 def test_live_without_key_stops(protocols_dir, monkeypatch, capsys):
     # The autouse no_api_keys fixture has already removed the key.
     assert ev.main(["--protocols-dir", str(protocols_dir()), "--live"]) == 2
-    assert "ANTHROPIC_API_KEY" in capsys.readouterr().out
+    assert "LLM_API_KEY" in capsys.readouterr().out

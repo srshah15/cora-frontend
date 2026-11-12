@@ -44,7 +44,7 @@ def test_invalid_key_message_is_specific_and_leaks_nothing(client, llm_mode, sam
     llm_mode.queue(api_error(401, body={"error": {"message": "bad key sk-ant-LEAKED"}}, message="sk-ant-LEAKED"))
     r = _upload(client, sample_pdf_bytes)
     assert r.status_code == 200
-    assert "ANTHROPIC_API_KEY" in r.json()["extraction_info"]["warning"]  # names the setting, not its value
+    assert "LLM_API_KEY" in r.json()["extraction_info"]["warning"]  # names the setting, not its value
     assert "LEAKED" not in r.text and "test-key-not-real" not in r.text
 
 

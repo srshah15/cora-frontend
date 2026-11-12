@@ -5,13 +5,13 @@ the real API, in-process with FastAPI's TestClient, once per extractor, and
 compares each plan with the hand-checked answer file (expected.json).
 
     python eval.py                      # keyword extractor only (free, offline)
-    python eval.py --live               # also the Claude extractor (needs ANTHROPIC_API_KEY, costs money)
+    python eval.py --live               # also the Claude extractor (needs LLM_API_KEY, costs money)
     python eval.py --allow-draft        # print results even for unverified answer files (labeled)
     python eval.py --protocols-dir DIR  # use another test set
 
 Nothing here re-implements extraction: the upload goes through POST
 /api/protocols, which is the full pipeline (ingest, OCR, extraction, merge,
-validation). The extractor is switched with CORA_EXTRACTOR, the same setting
+validation). The extractor is switched with EXTRACTOR, the same setting
 the server uses. DATABASE_URL is ignored, so nothing is stored or reused.
 
 Metric
@@ -288,7 +288,7 @@ def run_extractor(protocol: Protocol, extractor: str) -> Run:
     import main  # imported here so main's load_dotenv runs before we override settings
 
     # DATABASE_URL="" counts as unset, so the run never reads or writes saved plans.
-    with _env(CORA_EXTRACTOR=extractor, DATABASE_URL=""):
+    with _env(EXTRACTOR=extractor, DATABASE_URL=""):
         client = TestClient(main.app)
         r = client.post(
             "/api/protocols",
@@ -401,11 +401,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
 
     if args.live:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
+        if not os.environ.get("LLM_API_KEY"):
             # main.py loads backend/.env on import; do the same before checking.
             import main as _app  # noqa: F401
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            print("--live needs ANTHROPIC_API_KEY (in the environment or backend/.env).")
+        if not os.environ.get("LLM_API_KEY"):
+            print("--live needs LLM_API_KEY (in the environment or backend/.env).")
             return 2
         pages = sum(_page_count(p.pdf) for p in protocols)
         estimate = pages * COST_PER_PAGE_USD
@@ -420,7 +420,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     results = []
     for protocol in protocols:
         keyword = run_extractor(protocol, "keyword")
-        llm = run_extractor(protocol, "claude") if args.live else None
+        llm = run_extractor(protocol, "llm") if args.live else None
         results.append((protocol, keyword, llm))
         print(report(protocol, keyword, llm))
         print()

@@ -25,10 +25,10 @@ The backend reads its settings from environment variables, or from `backend/.env
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `CORA_EXTRACTOR` | `keyword` | `keyword` needs no key and no network. `claude` uses the Claude API. |
-| `ANTHROPIC_API_KEY` | none | Required when `CORA_EXTRACTOR=claude`. |
-| `CORA_LLM_MODEL` | `claude-opus-5-5` | Claude model used for extraction. |
-| `CORA_LLM_TIMEOUT_SECONDS` | `50` | How long to wait for one LLM response. |
+| `EXTRACTOR` | `keyword` | `keyword` needs no key and no network. `llm` uses the Claude API. |
+| `LLM_API_KEY` | none | Required when `EXTRACTOR=llm`. |
+| `LLM_MODEL` | `claude-opus-5-5` | Claude model used for extraction. |
+| `LLM_TIMEOUT` | `50` | How long to wait for one LLM response. |
 | `CORA_LLM_EFFORT` | `medium` | `low` to `max`. Higher is slower and costs more. |
 | `CORA_MAX_PAGES` | `150` | Longer protocols are rejected with HTTP 413. |
 | `CORA_REQUEST_TIMEOUT_SECONDS` | `120` | Upper limit for one upload; after it the API answers HTTP 504. |
@@ -36,11 +36,11 @@ The backend reads its settings from environment variables, or from `backend/.env
 | `CORS_ORIGINS` | none | Comma-separated extra origins (the deployed frontend). |
 | `DATABASE_URL` | none | PostgreSQL URL (Supabase). Turns on saved plans and reviews; run `alembic upgrade head` in `backend/` first. Without it, nothing is stored. |
 
-If `CORA_EXTRACTOR=claude` and the key is missing, the server stops at startup with a message naming the variable.
+If `EXTRACTOR=llm` and the key is missing, the server stops at startup with a message naming the variable.
 
 ### How extraction works
 1. **Ingest.** The PDF is read in memory. Pages with no text layer are read by OCR if Tesseract is installed.
-2. **Extract.** With `CORA_EXTRACTOR=claude`, the page-numbered text goes to Claude in one request and comes back as structured JSON. With `keyword`, items are found by keyword search.
+2. **Extract.** With `EXTRACTOR=llm`, the page-numbered text goes to Claude in one request and comes back as structured JSON. With `keyword`, items are found by keyword search.
 3. **Validate and merge.** Every item is checked against the plan schema. Items with no source page, no confidence or a bad reference are flagged for review. Sections the LLM left empty are filled from the keyword results.
 4. **Fallback.** If the LLM can't be used (timeout, rate limit, bad key, unreadable answer), the request is retried once when that could help, and otherwise the keyword plan is returned with a warning in `extraction_info.warning`.
 
@@ -123,7 +123,7 @@ npm run build
 ```bash
 cd backend
 python eval.py                 # keyword extractor; the LLM column says "not run"
-python eval.py --live          # also Claude: needs ANTHROPIC_API_KEY, shows the estimated cost and asks first
+python eval.py --live          # also Claude: needs LLM_API_KEY, shows the estimated cost and asks first
 python eval.py --allow-draft   # include unverified answer files, every row labeled as not a result
 ```
 

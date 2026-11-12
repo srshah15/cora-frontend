@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from typing import Optional
 
 KEYWORD = "keyword"
-CLAUDE = "claude"
-EXTRACTORS = (KEYWORD, CLAUDE)
+LLM = "llm"  # the Claude extractor (llm_extractor.py)
+EXTRACTORS = (KEYWORD, LLM)
 
 # Keyword stays the default so the app works with no key and no network.
 # LLM extraction is something an administrator opts into.
@@ -70,7 +70,7 @@ class Settings:
 
 
 def _env(name: str) -> Optional[str]:
-    # .env.example ships lines like "ANTHROPIC_API_KEY =", which load as an
+    # .env.example ships lines like "LLM_API_KEY =", which load as an
     # empty string. Treat empty and whitespace-only the same as not set.
     value = os.environ.get(name, "").strip()
     return value or None
@@ -102,10 +102,10 @@ def cors_origins() -> list:
 
 def get_settings() -> Settings:
     """Read and validate settings from the environment."""
-    extractor = (_env("CORA_EXTRACTOR") or DEFAULT_EXTRACTOR).lower()
+    extractor = (_env("EXTRACTOR") or DEFAULT_EXTRACTOR).lower()
     if extractor not in EXTRACTORS:
         raise ConfigError(
-            f"CORA_EXTRACTOR is set to {extractor!r}, which isn't a known extractor. "
+            f"EXTRACTOR is set to {extractor!r}, which isn't a known extractor. "
             f"Use one of: {', '.join(EXTRACTORS)}."
         )
 
@@ -117,9 +117,9 @@ def get_settings() -> Settings:
 
     settings = Settings(
         extractor=extractor,
-        anthropic_api_key=_env("ANTHROPIC_API_KEY"),
-        llm_model=_env("CORA_LLM_MODEL") or DEFAULT_LLM_MODEL,
-        llm_timeout_seconds=_positive("CORA_LLM_TIMEOUT_SECONDS", DEFAULT_LLM_TIMEOUT_SECONDS, float, "number of seconds"),
+        anthropic_api_key=_env("LLM_API_KEY"),
+        llm_model=_env("LLM_MODEL") or DEFAULT_LLM_MODEL,
+        llm_timeout_seconds=_positive("LLM_TIMEOUT", DEFAULT_LLM_TIMEOUT_SECONDS, float, "number of seconds"),
         llm_effort=effort,
         max_pages=_positive("CORA_MAX_PAGES", DEFAULT_MAX_PAGES, int, "whole number of pages"),
         request_timeout_seconds=_positive(
@@ -128,10 +128,10 @@ def get_settings() -> Settings:
         max_ocr_pages=_positive("CORA_MAX_OCR_PAGES", DEFAULT_MAX_OCR_PAGES, int, "whole number of pages"),
     )
 
-    if settings.extractor == CLAUDE and not settings.anthropic_api_key:
+    if settings.extractor == LLM and not settings.anthropic_api_key:
         raise ConfigError(
-            "CORA_EXTRACTOR is 'claude' but ANTHROPIC_API_KEY is not set. "
+            "EXTRACTOR is 'llm' but LLM_API_KEY is not set. "
             "Add your key to backend/.env (copy backend/.env.example), "
-            "or set CORA_EXTRACTOR=keyword to run without the LLM."
+            "or set EXTRACTOR=keyword to run without the LLM."
         )
     return settings

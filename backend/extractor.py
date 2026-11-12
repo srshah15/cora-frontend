@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Optional, Protocol, runtime_checkable
 
-from config import CLAUDE, Settings, get_settings
+from config import LLM, Settings, get_settings
 from extract import ParsedDocument, plan_from_parsed
 from models import OperationalPlan
 
@@ -46,13 +46,13 @@ class KeywordExtractor:
 
 
 def get_extractor(settings: Optional[Settings] = None) -> Extractor:
-    """Build the extractor named by CORA_EXTRACTOR.
+    """Build the extractor named by EXTRACTOR.
 
     Used as a FastAPI dependency, so tests can substitute any object that
     satisfies the Extractor protocol.
     """
     settings = settings or get_settings()
-    if settings.extractor == CLAUDE:
+    if settings.extractor == LLM:
         # Imported here, not at the top, so keyword mode never loads the
         # Anthropic SDK and this module stays provider-neutral.
         from llm_extractor import ClaudeExtractor

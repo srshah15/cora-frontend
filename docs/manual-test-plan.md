@@ -21,7 +21,7 @@ A blank template for a hands-on test pass of the deployed or local build.
 | Commit (SHA) | |
 | Frontend URL | |
 | Backend URL | |
-| `CORA_EXTRACTOR` (keyword / claude) | |
+| `EXTRACTOR` (keyword / llm) | |
 | `DATABASE_URL` set? (yes / no) | |
 | Tesseract installed? (yes / no) | |
 
@@ -40,10 +40,10 @@ A blank template for a hands-on test pass of the deployed or local build.
 | P-03 | Processing | With `CORA_REQUEST_TIMEOUT_SECONDS` set very low (for example 1), upload a long protocol | A timeout message appears; the screen does not stay on processing | | |
 | P-04 | Processing | With Tesseract installed, upload `backend/tests/fixtures/scanned_protocol.pdf` | A plan comes back with text from the scanned page | | |
 | P-05 | Processing | Without Tesseract, upload the scanned PDF | "This PDF looks scanned (it has little or no selectable text), and OCR isn't installed on this server…" message | | |
-| E-01 | Extraction | `CORA_EXTRACTOR=keyword`: upload a protocol | Results show the "Early draft" note | | |
-| E-02 | Extraction | `CORA_EXTRACTOR=claude` with a valid key: upload a protocol | Visits, procedures and staffing appear with page numbers; low-confidence items are flagged | | |
-| E-03 | Extraction | `CORA_EXTRACTOR=claude` with an invalid key: upload a protocol | A keyword plan appears with a warning banner naming the API key problem | | |
-| E-04 | Extraction | `CORA_EXTRACTOR=claude` with no key: start the backend | The server refuses to start and names `ANTHROPIC_API_KEY` and `backend/.env` | | |
+| E-01 | Extraction | `EXTRACTOR=keyword`: upload a protocol | Results show the "Early draft" note | | |
+| E-02 | Extraction | `EXTRACTOR=llm` with a valid key: upload a protocol | Visits, procedures and staffing appear with page numbers; low-confidence items are flagged | | |
+| E-03 | Extraction | `EXTRACTOR=llm` with an invalid key: upload a protocol | A keyword plan appears with a warning banner naming the API key problem | | |
+| E-04 | Extraction | `EXTRACTOR=llm` with no key: start the backend | The server refuses to start and names `LLM_API_KEY` and `backend/.env` | | |
 | R-01 | Results | Open a plan | Summary, stats, section nav with flag counts, and all eight sections render; empty sections show their empty message | | |
 | R-02 | Results | Turn on "Only show flagged items" | Only flagged rows remain; sections with none say "No open flags here." | | |
 | R-03 | Results | Pick each role (coordinator, project manager, operations leader) | That role's sections move to the top and open; others stay available, collapsed | | |

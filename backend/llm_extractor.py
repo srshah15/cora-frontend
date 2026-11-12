@@ -87,8 +87,8 @@ WARNINGS = {
     "rate_limited": "The AI service is receiving too many requests right now, so this plan was built by keyword search only. Try again in a few minutes.",
     "connection": "CORA couldn't reach the AI service, so this plan was built by keyword search only. Check the server's internet connection and try again.",
     "provider_error": "The AI service had a temporary problem, so this plan was built by keyword search only. Try again in a few minutes.",
-    "invalid_key": "The AI service rejected CORA's API key, so this plan was built by keyword search only. Ask your administrator to check ANTHROPIC_API_KEY on the server.",
-    "rejected": "The AI service rejected the request, so this plan was built by keyword search only. Ask your administrator to check the model name (CORA_LLM_MODEL) and the account's access.",
+    "invalid_key": "The AI service rejected CORA's API key, so this plan was built by keyword search only. Ask your administrator to check LLM_API_KEY on the server.",
+    "rejected": "The AI service rejected the request, so this plan was built by keyword search only. Ask your administrator to check the model name (LLM_MODEL) and the account's access.",
     "invalid_output": "The AI service returned a plan CORA couldn't read, so this plan was built by keyword search only. Try uploading again.",
     "refused": "The AI service declined to process this document, so this plan was built by keyword search only.",
     "truncated": "The AI service's answer was cut off before it finished, so this plan was built by keyword search only. Try uploading again.",
@@ -128,11 +128,11 @@ def make_client(settings: Settings) -> anthropic.Anthropic:
     The key is passed explicitly instead of letting the SDK look for
     credentials itself. The SDK can also find credentials in other places
     (ANTHROPIC_AUTH_TOKEN, a saved login profile), which would hide the fact
-    that ANTHROPIC_API_KEY is missing from this server's configuration.
+    that LLM_API_KEY is missing from this server's configuration.
     """
     if not settings.anthropic_api_key:
         raise ConfigError(
-            "ANTHROPIC_API_KEY is not set, so the Claude extractor can't be used. "
+            "LLM_API_KEY is not set, so the Claude extractor can't be used. "
             "Add it to backend/.env."
         )
     return anthropic.Anthropic(

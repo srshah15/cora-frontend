@@ -36,10 +36,10 @@ def test_parse_pdf_keeps_page_order(sample_pdf_bytes):
 
 
 def test_claude_extractor_chosen_by_env(monkeypatch):
-    monkeypatch.setenv("CORA_EXTRACTOR", "claude")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    monkeypatch.setenv("CORA_LLM_MODEL", "some-model")
-    monkeypatch.setenv("CORA_LLM_TIMEOUT_SECONDS", "7")
+    monkeypatch.setenv("EXTRACTOR", "llm")
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "some-model")
+    monkeypatch.setenv("LLM_TIMEOUT", "7")
 
     ex = get_extractor()
     assert isinstance(ex, Extractor)
@@ -56,14 +56,14 @@ def test_claude_client_requires_a_key():
 
     from llm_extractor import make_client
 
-    settings = replace(get_settings(), extractor="claude", anthropic_api_key=None)
-    with pytest.raises(ConfigError, match="ANTHROPIC_API_KEY"):
+    settings = replace(get_settings(), extractor="llm", anthropic_api_key=None)
+    with pytest.raises(ConfigError, match="LLM_API_KEY"):
         make_client(settings)
 
 
 def test_server_refuses_to_start_in_llm_mode_without_key(monkeypatch):
-    monkeypatch.setenv("CORA_EXTRACTOR", "claude")
-    with pytest.raises(ConfigError, match="ANTHROPIC_API_KEY"):
+    monkeypatch.setenv("EXTRACTOR", "llm")
+    with pytest.raises(ConfigError, match="LLM_API_KEY"):
         with TestClient(main.app):
             pass
 

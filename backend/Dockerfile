@@ -18,6 +18,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
-# Render sets PORT. Secrets (ANTHROPIC_API_KEY, DATABASE_URL) are set in the
+# Render sets PORT. Secrets (LLM_API_KEY, DATABASE_URL) are set in the
 # host's dashboard, never baked into the image.
 CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

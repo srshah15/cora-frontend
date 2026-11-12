@@ -36,7 +36,11 @@ SAMPLE_PDF = FIXTURES / "sample_protocol.pdf"
 SAMPLE_PLAN = FIXTURES / "sample_plan.json"
 
 # ANTHROPIC_AUTH_TOKEN is a second credential the Anthropic SDK accepts.
-API_KEY_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY")
+# ANTHROPIC_API_KEY is cleared too: the SDK would read it if our code ever stopped
+# passing the key explicitly.
+API_KEY_VARS = ("LLM_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY")
+# Settings without the CORA_ prefix (names shared with main, PR #46).
+SETTINGS_VARS = ("EXTRACTOR", "LLM_MODEL", "LLM_TIMEOUT", "LLM_RETRIES")
 
 
 class NetworkAccessError(RuntimeError):
@@ -68,7 +72,7 @@ def no_api_keys(monkeypatch):
 def no_local_config(monkeypatch):
     # Tests start from the defaults (keyword extractor) and opt in to anything
     # else with monkeypatch.setenv.
-    for var in [v for v in os.environ if v.startswith("CORA_")]:
+    for var in [v for v in os.environ if v.startswith("CORA_")] + list(SETTINGS_VARS):
         monkeypatch.delenv(var, raising=False)
     # A developer's .env may point at the real Supabase database. Tests must
     # never use it: persistence is off unless a test asks for the `db` fixture.
@@ -224,8 +228,8 @@ def fake_llm(monkeypatch):
 @pytest.fixture
 def llm_mode(monkeypatch, fake_llm):
     """Switch the app to the Claude extractor, backed by the FakeLLM."""
-    monkeypatch.setenv("CORA_EXTRACTOR", "claude")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    monkeypatch.setenv("EXTRACTOR", "llm")
+    monkeypatch.setenv("LLM_API_KEY", "test-key-not-real")
     return fake_llm
 
 

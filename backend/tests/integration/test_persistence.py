@@ -180,8 +180,8 @@ def test_keyword_plan_is_upgraded_when_llm_is_switched_on(client, db_on, fake_ll
     stored = _upload(client, sample_pdf_bytes).json()  # keyword mode
     assert stored["extraction"] == "keyword"
 
-    monkeypatch.setenv("CORA_EXTRACTOR", "claude")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    monkeypatch.setenv("EXTRACTOR", "llm")
+    monkeypatch.setenv("LLM_API_KEY", "test-key-not-real")
     fake_llm.queue(llm_payload)
     upgraded = _upload(client, sample_pdf_bytes).json()
     assert upgraded["extraction"] == "llm"
