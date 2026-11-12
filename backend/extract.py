@@ -7,13 +7,35 @@ Confidence reflects how many pages mention the item, not any deeper analysis.
 """
 
 import re
+import time
 from collections import Counter
+from dataclasses import dataclass
+from typing import Any, List, Optional
 
 import pymupdf
 
 
 class ExtractionError(Exception):
     """The PDF can't be read or has no usable text."""
+
+
+class ProtocolTooLongError(ExtractionError):
+    """The PDF has more pages than this server accepts (HTTP 413)."""
+
+
+@dataclass
+class ParsedDocument:
+    """A protocol PDF after text extraction, held in memory only.
+
+    Reading the PDF is separate from extracting a plan so the PDF is parsed
+    once and the same result can go to any extractor (keyword or LLM).
+    """
+
+    pages: List[str]  # pages[0] is page 1, so page number = index + 1
+    filename: str
+    doc: Any          # the open PyMuPDF document (the keyword title finder needs fonts)
+    flags: int        # PyMuPDF text flags used to read the pages
+    ocr_pages: int = 0  # how many pages were read by OCR
 
 
 # ---------- reading the PDF ----------
@@ -24,13 +46,57 @@ def _spaced_out(text: str) -> bool:
     return len(words) > 200 and sum(len(w) == 1 for w in words) / len(words) > 0.25
 
 
-def read_pdf(data: bytes):
+# A page with fewer characters than this has no usable text layer. Real
+# protocol pages have hundreds; a scanned page has none or a stray few.
+MIN_PAGE_CHARS = 50
+# Resolution for OCR. 300 dpi is the usual choice for printed text: lower
+# loses small print, higher is much slower for little gain.
+OCR_DPI = 300
+
+
+def ocr_available() -> bool:
+    """True if Tesseract's language data is installed where PyMuPDF can find it."""
+    try:
+        return bool(pymupdf.get_tessdata())
+    except Exception:
+        return False
+
+
+def _ocr_page(page) -> str:
+    """Read one page by OCR.
+
+    PyMuPDF renders the page to an image in memory and runs Tesseract on it
+    in-process, so nothing is written to disk (unlike pytesseract, which
+    passes temp image files to a subprocess).
+    """
+    textpage = page.get_textpage_ocr(dpi=OCR_DPI, full=True, language="eng")
+    return page.get_text(textpage=textpage)
+
+
+def _needs_ocr(page, text: str) -> bool:
+    # Thin text AND a picture on the page: almost certainly a scan. A page
+    # that is simply blank has no image and is left alone.
+    return len(text.strip()) < MIN_PAGE_CHARS and bool(page.get_images())
+
+
+def _open(data: bytes, max_pages: Optional[int]):
     try:
         doc = pymupdf.open(stream=data, filetype="pdf")
     except Exception as e:
         raise ExtractionError("That file couldn't be opened as a PDF.") from e
     if doc.needs_pass:
         raise ExtractionError("That PDF is password protected.")
+    # Checked before reading any text, so an oversized file fails fast.
+    if max_pages is not None and doc.page_count > max_pages:
+        raise ProtocolTooLongError(
+            f"This protocol has {doc.page_count} pages. CORA handles up to {max_pages}. "
+            "Remove appendices or split the file, then upload again."
+        )
+    return doc
+
+
+def _read(data: bytes, max_pages: Optional[int], max_ocr_pages: Optional[int], deadline: Optional[float]):
+    doc = _open(data, max_pages)
 
     pages = [p.get_text() for p in doc]
     flags = 0
@@ -38,10 +104,43 @@ def read_pdf(data: bytes):
         flags = pymupdf.TEXT_INHIBIT_SPACES
         pages = [p.get_text(flags=flags) for p in doc]
 
+    # OCR only the pages that need it. Text-native pages keep their exact text
+    # layer, and each OCR result goes back at the same index, so page numbers
+    # (index + 1) still match the PDF.
+    scanned = [i for i, text in enumerate(pages) if _needs_ocr(doc[i], text)]
+    ocr_done = 0
+    can_ocr = bool(scanned) and ocr_available()
+    if can_ocr:
+        if max_ocr_pages is not None and len(scanned) > max_ocr_pages:
+            raise ProtocolTooLongError(
+                f"This PDF has {len(scanned)} scanned pages. CORA can read up to {max_ocr_pages} by OCR. "
+                "Upload a version with selectable text, or split the file."
+            )
+        for i in scanned:
+            # OCR is the slowest step, so check the clock between pages
+            # instead of running past the request's deadline.
+            if deadline is not None and time.monotonic() >= deadline:
+                raise ExtractionError(
+                    "Reading this scanned PDF took too long. Upload a version with selectable text, or split the file."
+                )
+            pages[i] = _ocr_page(doc[i])
+            ocr_done += 1
+
     if sum(len(t.strip()) for t in pages) < 100 * len(pages):
+        if scanned and not can_ocr:
+            raise ExtractionError(
+                "This PDF looks scanned (it has little or no selectable text), and OCR isn't installed on this server. "
+                "Upload a PDF with selectable text, or ask your administrator to install Tesseract (see the README)."
+            )
         raise ExtractionError(
-            "This PDF has little or no selectable text, so it's probably a scan. OCR isn't supported yet."
+            "This PDF has little or no readable text, even after trying OCR. "
+            "Upload a clearer copy or a PDF with selectable text."
         )
+    return doc, pages, flags, ocr_done
+
+
+def read_pdf(data: bytes, max_pages: Optional[int] = None):
+    doc, pages, flags, _ = _read(data, max_pages, None, None)
     return doc, pages, flags
 
 
@@ -173,6 +272,15 @@ def find_registry_id(pages, filename):
     if m:
         return m.group(0).upper()
     num = _labeled(" \n".join(pages[:2]), r"protocol (?:number|no\.?|identifier)")
+    return num
+
+
+def find_protocol_number(pages):
+    """The sponsor's own protocol id from a labelled line on the first pages."""
+    num = _labeled(" \n".join(pages[:2]), r"protocol (?:number|no\.?|identifier|id)")
+    # Reject values that are clearly not an id (a long sentence, or the NCT number).
+    if not num or len(num) > 60 or re.fullmatch(r"NCT\d{8}", num, re.I):
+        return None
     return num
 
 
@@ -412,8 +520,24 @@ def safety_items(flat_pages, skip):
 
 # ---------- plan ----------
 
+def parse_pdf(
+    data: bytes,
+    filename: str,
+    max_pages: Optional[int] = None,
+    max_ocr_pages: Optional[int] = None,
+    deadline: Optional[float] = None,
+) -> ParsedDocument:
+    doc, pages, flags, ocr_pages = _read(data, max_pages, max_ocr_pages, deadline)
+    return ParsedDocument(pages=pages, filename=filename, doc=doc, flags=flags, ocr_pages=ocr_pages)
+
+
 def extract_plan(data: bytes, filename: str) -> dict:
-    doc, pages, flags = read_pdf(data)
+    """Read a PDF and build the keyword plan in one step."""
+    return plan_from_parsed(parse_pdf(data, filename))
+
+
+def plan_from_parsed(parsed: ParsedDocument) -> dict:
+    doc, pages, flags, filename = parsed.doc, parsed.pages, parsed.flags, parsed.filename
     flat_pages = [_flat(t) for t in pages]
     skip = {i for i, t in enumerate(pages) if _is_toc(t)}
     front = "\n".join(pages[:3])
@@ -438,6 +562,7 @@ def extract_plan(data: bytes, filename: str) -> dict:
             "title": title or filename,
             "short_title": short or registry_id or re.sub(r"\.pdf$", "", filename, flags=re.I),
             "registry_id": registry_id,
+            "protocol_number": find_protocol_number(pages),
             "phase": find_phase(front),
             "sponsor": find_sponsor(front),
             "therapeutic_area": None,

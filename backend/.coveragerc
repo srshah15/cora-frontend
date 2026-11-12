@@ -1,0 +1,12 @@
+# Coverage measures which lines of the backend ran during the tests.
+# It shows what is untested; it does not prove tested lines are correct.
+[run]
+source = .
+omit =
+    tests/*
+    .venv/*
+    migrations/*
+    eval.py
+
+[report]
+show_missing = True

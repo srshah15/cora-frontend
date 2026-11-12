@@ -39,7 +39,13 @@
   // Flagged and no decision yet.
   const isOpen = (it, k) => isFlagged(it) && !state.reviews.has(k);
 
+  // Sections whose items can be reviewed one by one (they have a form in FIELDS).
+  // Visits can't, so low-confidence visits are marked on the timeline instead
+  // of being added to the review queue.
+  const reviewable = (key) => !!FIELDS[key];
+
   function openFlags(key) {
+    if (!reviewable(key)) return 0;
     return itemsFor(key).filter((it, i) => isOpen(it, `${key}:${i}`)).length;
   }
 
@@ -237,6 +243,7 @@
           ${fact("Design", p.design)}
           ${fact("Duration", p.duration)}
         </dl>
+        ${state.plan.extraction_info?.warning ? `<p class="extraction-note extraction-warn" role="alert"><strong>Limited extraction.</strong> ${esc(state.plan.extraction_info.warning)}</p>` : ""}
         ${state.plan.extraction === "keyword" ? `<p class="extraction-note">Early draft: CORA found these items by searching the protocol text for keywords, and each one links to the page it came from. The visit schedule, staffing and billing aren't extracted yet.</p>` : ""}
         <div class="summary-stats">
           ${stat(state.plan.visits?.length ?? 0, "visits")}
@@ -349,6 +356,8 @@
             <div class="tl-name">${esc(v.name)}</div>
             <div class="tl-day">${esc(v.day)}${v.window ? ` <span class="muted">${esc(v.window)}</span>` : ""}</div>
             <div class="tl-type">${esc(v.type || "")}</div>
+            ${isFlagged(v) ? `<div class="note note-warn">Needs checking${v.notes ? `: ${esc(v.notes)}` : ""}</div>` : v.notes ? `<div class="note">${esc(v.notes)}</div>` : ""}
+            ${v.source_page ? `<div class="src">p. ${esc(v.source_page)}</div>` : ""}
           </li>`
         )
         .join("")}</ol>`;
@@ -388,6 +397,7 @@
         { label: "Role", field: "role" },
         { label: "Est. FTE", render: (s) => `<span class="mono">${esc(s.fte)}</span>` },
         { label: "Responsibilities", field: "responsibilities" },
+        { label: "Qualifications", field: "qualifications" },
       ]);
     },
 
@@ -484,7 +494,7 @@
   }
 
   const flaggedKeys = () =>
-    SECTIONS.flatMap((s) => itemsFor(s.key).flatMap((it, i) => (isFlagged(it) ? [`${s.key}:${i}`] : [])));
+    SECTIONS.filter((s) => reviewable(s.key)).flatMap((s) => itemsFor(s.key).flatMap((it, i) => (isFlagged(it) ? [`${s.key}:${i}`] : [])));
 
   // First undecided item at or after `from`, wrapping around; -1 if none left.
   function nextOpen(from) {

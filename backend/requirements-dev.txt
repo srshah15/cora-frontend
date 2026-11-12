@@ -2,3 +2,7 @@
 # Install with: pip install -r requirements.txt -r requirements-dev.txt
 pytest==9.2.0
 httpx==0.28.1
+# Coverage report (printed by every pytest run; configured in pytest.ini).
+pytest-cov==7.1.0
+# The `mocker` fixture, for tests that patch one function for one test.
+pytest-mock==3.17.0

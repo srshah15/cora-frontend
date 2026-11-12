@@ -50,3 +50,33 @@ def test_bad_review_key_returns_422(client, sample_plan):
     r = client.post(URL, json={"plan": sample_plan, "reviews": {"procedures:500": {"status": "accepted"}}})
     assert r.status_code == 422
     assert "procedures:500" in r.text
+
+
+# ---------- role-based section order (issue #29) ----------
+
+def _headings(content: bytes):
+    import io
+
+    from docx import Document
+
+    return [p.text for p in Document(io.BytesIO(content)).paragraphs if p.style.name == "Heading 1"]
+
+
+def test_section_order_puts_requested_sections_first(client, sample_plan):
+    r = client.post("/api/export/docx", json={"plan": sample_plan, "section_order": ["staffing", "safety"]})
+    assert r.status_code == 200, r.text
+    assert _headings(r.content)[2:] == [
+        "Staffing", "Safety reporting",  # the role's sections first
+        "Visit schedule", "Procedures", "Billing", "Equipment", "Pharmacy", "Technology",  # the rest, all present
+    ]
+
+
+def test_default_section_order_is_unchanged(client, sample_plan):
+    r = client.post("/api/export/docx", json={"plan": sample_plan})
+    assert _headings(r.content)[2:4] == ["Visit schedule", "Procedures"]
+
+
+def test_bad_section_order_is_rejected(client, sample_plan):
+    for bad in (["staffing", "nope"], ["staffing", "staffing"]):
+        r = client.post("/api/export/docx", json={"plan": sample_plan, "section_order": bad})
+        assert r.status_code == 422

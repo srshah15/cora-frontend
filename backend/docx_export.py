@@ -87,6 +87,10 @@ class ReviewDecision(BaseModel):
     reviewer: Optional[str] = None
     at: Optional[str] = None  # ISO timestamp
     original: Optional[Dict[str, Any]] = None  # field values before an edit
+    # Field values after an edit. Needed once plans are stored and shared: the
+    # saved plan isn't changed by one reviewer's edit, so the edit travels
+    # with the decision and is re-applied when that reviewer opens the plan.
+    values: Optional[Dict[str, Any]] = None
 
 
 class DocxExportRequest(BaseModel):
@@ -96,11 +100,28 @@ class DocxExportRequest(BaseModel):
     reviews: Dict[str, ReviewDecision] = Field(default_factory=dict)
     review_threshold: float = Field(default=DEFAULT_REVIEW_THRESHOLD, ge=0.0, le=1.0)
     reviewer: Optional[str] = None
+    # Section keys to put first, in this order (the role picker's choice).
+    # Sections not listed follow in the standard order. Order only: every
+    # section is always included.
+    section_order: Optional[List[str]] = None
 
     @model_validator(mode="after")
     def _check_review_keys(self) -> "DocxExportRequest":
         validate_review_keys(self.plan, self.reviews)
+        ordered_sections(self.section_order)  # raises on unknown or repeated keys
         return self
+
+
+def ordered_sections(first: Optional[List[str]]) -> List[Tuple[str, str]]:
+    """All sections, with the requested ones first. Never drops a section."""
+    first = first or []
+    unknown = [k for k in first if k not in SECTION_LABELS]
+    if unknown:
+        raise ValueError(f"unknown section(s) in section_order: {', '.join(unknown)}")
+    if len(set(first)) != len(first):
+        raise ValueError("section_order lists a section more than once")
+    rest = [k for k, _ in SECTIONS if k not in first]
+    return [(k, SECTION_LABELS[k]) for k in [*first, *rest]]
 
 
 def items_for(plan: OperationalPlan, key: str) -> list:
@@ -300,6 +321,7 @@ def build_plan_docx(
     review_threshold: float = DEFAULT_REVIEW_THRESHOLD,
     reviewer: Optional[str] = None,
     export_date: Optional[date] = None,
+    section_order: Optional[List[str]] = None,
 ) -> bytes:
     """Build the review-draft Word document and return it as bytes."""
     decisions = _coerce_reviews(reviews)
@@ -376,7 +398,7 @@ def build_plan_docx(
         doc.add_paragraph("No whole sections are flagged.", style="List Bullet")
 
     # Categories
-    for key, label in SECTIONS:
+    for key, label in ordered_sections(section_order):
         doc.add_paragraph(label, style="Heading 1")
         reason = section_reason(key)
         if reason:
