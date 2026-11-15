@@ -3,8 +3,7 @@
 Public clinical trial protocols with hand-checked answer files. `backend/eval.py` (issue #35) scores
 the extractors against them. The regular `pytest` run never opens this folder.
 
-**Status: no protocols added yet.** The set needs 3 to 5 protocols from ClinicalTrials.gov, and it
-must include **NCT03872401**.
+**3 protocols added, all answer files have been verified by a human curator.**
 
 ## Layout
 
@@ -50,7 +49,7 @@ A new answer file always starts as a **draft** (`"status": "DRAFT – NEEDS HUMA
 person checks every item against the PDF, then sets:
 
 - `"status": "VERIFIED"`
-- `"verified_by"`: their name
+- `"verified_by"`: their initials
 - `"verified_on"`: the date, `YYYY-MM-DD`
 
 `eval.py` won't print results while any answer file is a draft. `--allow-draft` prints them, with
@@ -62,4 +61,20 @@ The protocols should differ in at least two of these. Fill the table in as proto
 
 | NCT ID | Pages | Phase | Therapeutic area | Schedule layout |
 | --- | --- | --- | --- | --- |
-| NCT03872401 | | | | |
+| NCT03872401 | 122 | Phase 3 | Cardiovascular (evolocumab, outcomes trial) | One 3-page grid; columns are treatment *years* with Q2W/Q16W cells and "continually" spans; 7 visits |
+| NCT07601516 | 60 | Phase 4 (real-world) | Neurology (deutetrabenazine, Huntington's chorea) | One-page week-by-week grid; alternating clinic visits and phone contacts plus an unscheduled column; 10 visits |
+| NCT07450833 | 102 | Phase 1 (first in human) | Healthy volunteers (benfo-oxythiamine PK) | Two separate day-by-day grids (SAD and MAD) with inpatient confinement days; 19 visits |
+
+## Curation choices
+
+Each `expected.json` has a `curation_notes` list (ignored by `eval.py`) saying which tables it was
+built from and how edge cases were handled. The rules shared by all three:
+
+- **Visits** are the columns of the protocol's schedule table.
+- **Procedure→visit**: every marked cell counts, including optional, subset-only and "as available" cells.
+- **Staffing** lists site roles only (no sponsor, CRO or committee roles). When the protocol only says
+  "study site staff" or "research delegates", the answer file uses "Clinical research coordinator" and
+  says so in `notes`.
+- **Billing** is `[]` because it needs a coverage analysis. Ignore the billing rows in `eval.py` output.
+- Safety, equipment, pharmacy and technology list only items the protocol states directly.
+- `source_page` values are PDF page numbers, which can be off by one from the printed page.

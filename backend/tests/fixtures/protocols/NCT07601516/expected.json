@@ -1,0 +1,362 @@
+{
+  "status": "VERIFIED",
+  "verified_by": "AMS",
+  "verified_on": "2026-11-15",
+  "nct_id": "NCT07601516",
+  "source_url": "https://clinicaltrials.gov/study/NCT07601516",
+  "curation_notes": [
+    "Source: Table 4 Schedule of visits, PDF page 26 (printed 'Page 25 of 59'). Page numbers below are PDF pages.",
+    "Use Table 4, the amended schedule. The amendment summary on PDF pages 2-5 quotes older table text and is not the schedule.",
+    "Visits: V1 = baseline/screening (week 0), V2-V5 = on-site hospital visits (weeks 4/8/12/16), R1-R4 = telephone or on-site contacts (weeks 2/6/10/14), U = unscheduled visit/contact.",
+    "A procedure is mapped to a visit for every X, including X6 cells ('collected as occurred, to the extent available').",
+    "Staffing lists site roles only. Billing is not curated for this set."
+  ],
+  "visits": [
+    {
+      "id": "V1",
+      "name": "Screening / Baseline (V1)",
+      "day": "Week 0",
+      "window": "0 days",
+      "type": "Clinic",
+      "source_page": 26
+    },
+    {
+      "id": "R1",
+      "name": "Week 2 contact (R1)",
+      "day": "Week 2",
+      "window": "±3 days",
+      "type": "Phone or clinic",
+      "source_page": 26
+    },
+    {
+      "id": "V2",
+      "name": "Week 4 visit (V2)",
+      "day": "Week 4",
+      "window": "±3 days",
+      "type": "Clinic",
+      "source_page": 26
+    },
+    {
+      "id": "R2",
+      "name": "Week 6 contact (R2)",
+      "day": "Week 6",
+      "window": "±3 days",
+      "type": "Phone or clinic",
+      "source_page": 26
+    },
+    {
+      "id": "V3",
+      "name": "Week 8 visit (V3)",
+      "day": "Week 8",
+      "window": "±3 days",
+      "type": "Clinic",
+      "source_page": 26
+    },
+    {
+      "id": "R3",
+      "name": "Week 10 contact (R3)",
+      "day": "Week 10",
+      "window": "±3 days",
+      "type": "Phone or clinic",
+      "source_page": 26
+    },
+    {
+      "id": "V4",
+      "name": "Week 12 visit (V4)",
+      "day": "Week 12",
+      "window": "±3 days",
+      "type": "Clinic",
+      "source_page": 26
+    },
+    {
+      "id": "R4",
+      "name": "Week 14 contact (R4)",
+      "day": "Week 14",
+      "window": "±3 days",
+      "type": "Phone or clinic",
+      "source_page": 26
+    },
+    {
+      "id": "V5",
+      "name": "Week 16 visit (V5)",
+      "day": "Week 16",
+      "window": "±3 days",
+      "type": "Clinic",
+      "source_page": 26
+    },
+    {
+      "id": "U",
+      "name": "Unscheduled visit/contact",
+      "day": "As needed",
+      "type": "Phone or clinic",
+      "source_page": 26
+    }
+  ],
+  "procedures": [
+    {
+      "name": "Deutetrabenazine treatment information",
+      "visits": [
+        "V1",
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Informed consent/assent",
+      "visits": [
+        "V1"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Selection criteria",
+      "visits": [
+        "V1"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Medical history/demographics",
+      "visits": [
+        "V1"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Time-independent disease and clinical characteristics",
+      "visits": [
+        "V1"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Height",
+      "visits": [
+        "V1"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Weight",
+      "visits": [
+        "V1",
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Lab tests and other procedures",
+      "visits": [
+        "V1",
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26,
+      "notes": "As available"
+    },
+    {
+      "name": "Concomitant medications",
+      "visits": [
+        "V1",
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Medical conditions and comorbidities",
+      "visits": [
+        "V1",
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "UHDRS Total Functional Capacity (TFC)",
+      "visits": [
+        "V1",
+        "U"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "UHDRS Total Maximal Chorea (TMC) score",
+      "visits": [
+        "V1",
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26,
+      "notes": "Required at V1-V5; as available at R contacts"
+    },
+    {
+      "name": "Disease management – control of involuntary movements",
+      "visits": [
+        "V1",
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Drug dispensing",
+      "visits": [
+        "V1",
+        "V2",
+        "V3",
+        "V4",
+        "U"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Adverse events",
+      "visits": [
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26
+    },
+    {
+      "name": "Drop-out survey",
+      "visits": [
+        "R1",
+        "V2",
+        "R2",
+        "V3",
+        "R3",
+        "V4",
+        "R4",
+        "V5",
+        "U"
+      ],
+      "source_page": 26
+    }
+  ],
+  "staffing": [
+    {
+      "role": "Principal Investigator",
+      "source_page": 21,
+      "responsibilities": "Overall conduct at the center; contact with study management, IRB and authorities; signs IMP accountability records"
+    },
+    {
+      "role": "Treating physician trained in UHDRS",
+      "source_page": 29,
+      "responsibilities": "Performs UHDRS/TMC effectiveness assessments; the same physician for each patient's hospital visits"
+    },
+    {
+      "role": "Clinical research coordinator",
+      "source_page": 24,
+      "responsibilities": "Research delegate: biweekly phone/visit contacts collecting chorea control, dosing and concomitant medications; eCRF data entry",
+      "notes": "Protocol says 'research delegates' / 'appropriately designated and trained personnel'; role named by curator"
+    }
+  ],
+  "safety": [
+    {
+      "event": "Serious adverse event",
+      "timeline": "Within 24 hours of awareness",
+      "recipient": "Teva",
+      "source_page": 48,
+      "notes": "Also related non-serious AEs and AEs of special interest"
+    },
+    {
+      "event": "Non-serious unrelated adverse event",
+      "timeline": "Weekly database extract, or within 7 days on the AE Report Form",
+      "recipient": "Teva",
+      "source_page": 48
+    },
+    {
+      "event": "Pregnancy",
+      "timeline": "Within 7 days of awareness",
+      "recipient": "Teva local safety officer",
+      "source_page": 49
+    },
+    {
+      "event": "Product quality complaint",
+      "timeline": "Within 48 hours of awareness",
+      "recipient": "Teva",
+      "source_page": 52
+    }
+  ],
+  "billing": [],
+  "equipment": [],
+  "pharmacy": [
+    {
+      "item": "IMP storage below 25°C, protected from light",
+      "source_page": 34
+    },
+    {
+      "item": "IMP dispensing at hospital visits",
+      "source_page": 26
+    },
+    {
+      "item": "IMP accountability and return of unused bottles",
+      "source_page": 34
+    }
+  ],
+  "technology": [
+    {
+      "system": "Electronic data capture (CDMS/eDC)",
+      "source_page": 35
+    }
+  ]
+}

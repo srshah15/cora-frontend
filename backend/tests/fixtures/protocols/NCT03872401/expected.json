@@ -1,0 +1,358 @@
+{
+  "status": "VERIFIED",
+  "verified_by": "AMS",
+  "verified_on": "2026-11-15",
+  "nct_id": "NCT03872401",
+  "source_url": "https://clinicaltrials.gov/study/NCT03872401",
+  "curation_notes": [
+    "Source: Table 1-1 Schedule of Activities, PDF pages 19-21. Page numbers below are PDF pages.",
+    "Visits are the table's columns. The treatment-year columns stand for every on-treatment visit in that year (cells marked Q16W/Q2W), not a single day.",
+    "A procedure is mapped to a visit for every X, (X), [X], Q16W, Q2W or 'continually' cell, including optional and subset-only cells.",
+    "Staffing lists site roles only. Sponsor and committee roles (medical monitor, CRA, CEC, DMC) are out of scope.",
+    "Billing is not curated for this set (needs a coverage analysis), so billing scores are not meaningful."
+  ],
+  "visits": [
+    {
+      "id": "SCR",
+      "name": "Screening",
+      "day": "Day -21 to -1",
+      "type": "Clinic",
+      "source_page": 19
+    },
+    {
+      "id": "D1",
+      "name": "Day 1",
+      "day": "Day 1",
+      "type": "Clinic",
+      "source_page": 19
+    },
+    {
+      "id": "Y1",
+      "name": "Year 1 (Week 48)",
+      "day": "Week 48",
+      "window": "±7 days",
+      "type": "Clinic or remote",
+      "source_page": 19
+    },
+    {
+      "id": "Y2",
+      "name": "Year 2 (Week 96)",
+      "day": "Week 96",
+      "window": "±7 days",
+      "type": "Clinic or remote",
+      "source_page": 19
+    },
+    {
+      "id": "Y3",
+      "name": "Year 3+ (Week 144+)",
+      "day": "Week 144 onward",
+      "window": "±7 days",
+      "type": "Clinic or remote",
+      "source_page": 19
+    },
+    {
+      "id": "EOS",
+      "name": "End of Study",
+      "type": "Clinic",
+      "source_page": 19
+    },
+    {
+      "id": "SFU",
+      "name": "Safety Follow-Up",
+      "day": "Within 30 (+3) days of last dose",
+      "type": "Clinic or phone",
+      "source_page": 21
+    }
+  ],
+  "procedures": [
+    {
+      "name": "Informed consent",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Inclusion and exclusion criteria",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Demographics",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Physical examination",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Physical measurements (height and weight)",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Medical history",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Substance use history",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Vital signs",
+      "visits": [
+        "SCR",
+        "EOS"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Treatment compliance",
+      "visits": [
+        "Y1",
+        "Y2",
+        "Y3",
+        "EOS"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Adverse events",
+      "visits": [
+        "SCR",
+        "D1",
+        "Y1",
+        "Y2",
+        "Y3",
+        "EOS",
+        "SFU"
+      ],
+      "source_page": 19,
+      "notes": "SCR = serious adverse events only"
+    },
+    {
+      "name": "Potential endpoint data collection",
+      "visits": [
+        "D1",
+        "Y1",
+        "Y2",
+        "Y3",
+        "EOS"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Concomitant therapies",
+      "visits": [
+        "SCR",
+        "D1",
+        "Y1",
+        "Y2",
+        "Y3",
+        "EOS",
+        "SFU"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Vital status",
+      "visits": [
+        "D1",
+        "Y1",
+        "Y2",
+        "Y3",
+        "EOS"
+      ],
+      "source_page": 19
+    },
+    {
+      "name": "Serum or urine pregnancy test",
+      "visits": [
+        "SCR",
+        "D1",
+        "EOS"
+      ],
+      "source_page": 20,
+      "notes": "Females of childbearing potential"
+    },
+    {
+      "name": "Chemistry (local lab)",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 20
+    },
+    {
+      "name": "Fasting or non-fasting lipid panel (local lab)",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 20
+    },
+    {
+      "name": "Non-fasting lipid panel (central lab)",
+      "visits": [
+        "D1",
+        "Y1",
+        "Y2",
+        "EOS"
+      ],
+      "source_page": 20,
+      "notes": "Subset of ~2000 subjects"
+    },
+    {
+      "name": "Biomarker sample (optional)",
+      "visits": [
+        "D1",
+        "Y1",
+        "Y2",
+        "Y3",
+        "EOS"
+      ],
+      "source_page": 20,
+      "notes": "Post day 1 sample collected once during treatment; EOS sample for a subset"
+    },
+    {
+      "name": "Pharmacogenetic sample (optional)",
+      "visits": [
+        "D1"
+      ],
+      "source_page": 21
+    },
+    {
+      "name": "Placebo injection",
+      "visits": [
+        "SCR"
+      ],
+      "source_page": 21
+    },
+    {
+      "name": "Investigational product administration",
+      "visits": [
+        "D1",
+        "Y1",
+        "Y2",
+        "Y3"
+      ],
+      "source_page": 21,
+      "notes": "Q2W; day 1 dose in clinic"
+    },
+    {
+      "name": "Observed in-person investigational product administration review",
+      "visits": [
+        "Y1",
+        "Y2",
+        "Y3"
+      ],
+      "source_page": 21
+    },
+    {
+      "name": "Investigational product dispensation",
+      "visits": [
+        "D1",
+        "Y1",
+        "Y2",
+        "Y3"
+      ],
+      "source_page": 21,
+      "notes": "Q16W"
+    }
+  ],
+  "staffing": [
+    {
+      "role": "Principal Investigator",
+      "source_page": 79,
+      "responsibilities": "Overall conduct; keeps the Delegation of Authority list; SAE causality; supervises site-to-subject IP shipment"
+    },
+    {
+      "role": "Sub-investigator",
+      "source_page": 86,
+      "responsibilities": "May reconfirm SAE causality in EDC"
+    },
+    {
+      "role": "Clinical research coordinator",
+      "source_page": 40,
+      "responsibilities": "Study site staff: IVRS/IWRS registration and randomization call, AI/pen training at day 1 and later visits, CRF entry",
+      "notes": "Protocol says 'study site staff' / 'site representative'; role named by curator"
+    }
+  ],
+  "safety": [
+    {
+      "event": "Serious adverse event",
+      "timeline": "Within 24 hours of investigator's knowledge",
+      "recipient": "Amgen or designee",
+      "source_page": 51
+    },
+    {
+      "event": "Potential cardiovascular endpoint event",
+      "timeline": "Events CRF within 24 hours of knowledge",
+      "recipient": "Amgen",
+      "source_page": 52
+    },
+    {
+      "event": "Pregnancy and lactation",
+      "timeline": "Within 24 hours of learning of it",
+      "recipient": "Amgen",
+      "source_page": 54
+    }
+  ],
+  "billing": [],
+  "equipment": [
+    {
+      "item": "Prefilled autoinjector/pen (AI/pen)",
+      "source_page": 38
+    },
+    {
+      "item": "Central laboratory sample kits",
+      "source_page": 20
+    }
+  ],
+  "pharmacy": [
+    {
+      "item": "Investigational product storage and handling per IPIM",
+      "source_page": 37
+    },
+    {
+      "item": "Investigational product dispensing every 16 weeks",
+      "source_page": 21
+    },
+    {
+      "item": "Drug accountability records",
+      "source_page": 38
+    },
+    {
+      "item": "Blinded placebo-controlled investigational product",
+      "source_page": 37
+    }
+  ],
+  "technology": [
+    {
+      "system": "IVRS/IWRS",
+      "source_page": 40
+    },
+    {
+      "system": "Electronic data capture (EDC)",
+      "source_page": 46
+    },
+    {
+      "system": "Telehealth application",
+      "source_page": 43
+    }
+  ]
+}
