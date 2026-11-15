@@ -75,7 +75,7 @@ function Summary({ plan, reviews, role, exporting, onReview, onPdf, onDocx }) {
       {plan.extraction === "keyword" && (
         <p className="extraction-note">
           Early draft: CORA found these items by searching the protocol text for keywords, and each one links to the
-          page it came from. The visit schedule, staffing and billing aren't extracted yet.
+          page it came from. Billing is not extracted.
         </p>
       )}
       {plan.reused && (

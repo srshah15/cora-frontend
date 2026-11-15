@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CORA Quick-Start Guide</title>
+<style>
+  /* Same colours as the app (frontend/src/app.css). Self-contained: no
+     external fonts or scripts, so the page works offline and prints cleanly. */
+  :root {
+    --bg: #f7f8fa; --surface: #ffffff; --border: #dfe3e8;
+    --text: #1d2733; --text-2: #5b6876;
+    --accent: #2f6fb0; --accent-soft: #e6eff8;
+    --warn: #a2610b; --warn-soft: #fdf3e2; --warn-border: #f1d6a6;
+    --ok: #2e7d4f; --ok-soft: #e6f4ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161b; --surface: #1a2027; --border: #2c343e;
+      --text: #e6eaef; --text-2: #9aa6b2;
+      --accent: #6aa6e0; --accent-soft: #1b2a3a;
+      --warn: #e8a94b; --warn-soft: #2d2214; --warn-border: #5a4220;
+      --ok: #6cc391; --ok-soft: #16281e;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 48px; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 8px; }
+  .eyebrow { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { font-size: 26px; margin: 4px 0 8px; }
+  h2 { font-size: 19px; margin: 28px 0 8px; padding-top: 4px; }
+  h3 { font-size: 15px; margin: 18px 0 4px; }
+  p, li { max-width: 68ch; }
+  ol, ul { padding-left: 22px; margin: 6px 0; }
+  li { margin: 4px 0; }
+  .lede { color: var(--text-2); margin: 0; }
+  .ui { font-weight: 600; white-space: nowrap; }
+  .pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .pill-warn { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn-border); }
+  .pill-ok { background: var(--ok-soft); color: var(--ok); }
+  kbd { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--surface); }
+  .callout { background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+  .callout p { margin: 0; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+  .faq dt { font-weight: 600; margin-top: 12px; }
+  .faq dd { margin: 2px 0 0; }
+  .actions { margin-top: 12px; font-size: 14px; }
+  .actions a { color: var(--accent); }
+  footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--text-2); font-size: 13px; }
+  .optional { font-weight: 400; color: var(--text-2); font-size: .8em; }
+  .cats { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 4px 0; }
+  .cats dt { font-weight: 600; }
+  .cats dd { margin: 0; }
+  @media (max-width: 640px) { .two { grid-template-columns: 1fr; } .cats { grid-template-columns: 1fr; } .cats dd { margin-bottom: 6px; } }
+  @page { size: letter; margin: 0.5in 0.6in; }
+  @media print {
+    :root { --bg: #fff; --surface: #fff; --text: #111; --text-2: #444; --accent-soft: #eef3f9; }
+    body { font-size: 9.75pt; line-height: 1.35; }
+    main { max-width: none; padding: 0; }
+    h1 { font-size: 18pt; }
+    h2 { font-size: 13pt; margin-top: 14px; }
+    h3 { margin-top: 8px; }
+    li { margin: 2px 0; }
+    .faq dt { margin-top: 7px; }
+    .callout { margin: 8px 0; padding: 7px 12px; }
+    footer { margin-top: 14px; }
+    .actions { display: none; }
+    h2, h3, dt { break-after: avoid; }
+    li, dd { break-inside: avoid; }
+    .more { break-before: page; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">CORA · Clinical Operations Research Assistant</div>
+    <h1>Quick-start guide</h1>
+    <p class="lede">CORA reads a clinical research protocol and drafts an operational plan: the visit schedule, procedures at each visit, staffing, safety reporting, billing, and pharmacy, equipment and technology needs. Everything it produces is a draft for your team to check.</p>
+    <p class="actions"><a href="quick-start.pdf">Download this guide as a PDF</a></p>
+  </header>
+
+  <div class="callout">
+    <p><strong>Public protocols only.</strong> Upload protocols that are publicly available, for example from ClinicalTrials.gov. Don't upload confidential sponsor or institutional documents, or anything with patient information.</p>
+  </div>
+
+  <h2>For coordinators</h2>
+
+  <h3>1. Upload a protocol</h3>
+  <ol>
+    <li>Drag a protocol PDF onto <span class="ui">Drop a protocol PDF here</span>, or click it to choose a file. PDFs up to 50 MB and 150 pages work.</li>
+    <li>Wait on the processing screen. It shows each step; most protocols finish within two minutes.</li>
+    <li>Just exploring? Click <span class="ui">Try a sample protocol</span> to see a finished plan built from fictional data.</li>
+  </ol>
+
+  <h3>2. Read the plan</h3>
+  <ul>
+    <li>Each category has its own section. Use the list on the left to jump to one.</li>
+    <li>Choose your role under <span class="ui">View as</span> to put your sections first: coordinators see the visit schedule and procedures, project managers see staffing and safety, and operations leaders see technology, pharmacy and equipment. Nothing is hidden.</li>
+    <li>The visit schedule shows each visit with its timing and window. The procedures grid marks which visits each procedure happens at.</li>
+  </ul>
+
+  <h3>3. Understand confidence and flags</h3>
+  <ul>
+    <li>Every item shows a confidence level and the protocol page it came from (for example <span class="ui">p. 19</span>).</li>
+    <li>Items below 70% confidence are highlighted, with a note explaining what to check. Sections show <span class="pill pill-warn">3 to review</span>, <span class="pill pill-warn">Needs check</span> or <span class="pill pill-ok">Looks good</span>.</li>
+    <li>Turn on <span class="ui">Only show flagged items</span> to see just what needs attention.</li>
+    <li>A <span class="ui">Limited extraction</span> banner means CORA's AI step wasn't available and the plan came from a simpler keyword search. Review it carefully.</li>
+  </ul>
+
+  <h3>4. Export and start over</h3>
+  <ul>
+    <li><span class="ui">Download PDF</span> or <span class="ui">Download Word</span> saves the plan, including review decisions. Both are marked as drafts for review.</li>
+    <li><span class="ui">New protocol</span> clears the current plan and your decisions from the screen, so export first.</li>
+  </ul>
+
+  <h2 class="reviewers">For reviewers</h2>
+
+  <h3>1. Open the review queue</h3>
+  <ol>
+    <li>On the plan, click <span class="ui">Review N flagged</span>.</li>
+    <li>Type your name in the <span class="ui">Reviewer</span> box at the top. It's recorded with every decision and printed in the PDF's sign-off block.</li>
+  </ol>
+
+  <h3>2. Check each item against the protocol</h3>
+  <ul>
+    <li>The <span class="ui">Source protocol</span> pane shows the page the item came from. Use <span class="ui">Open in new tab</span> for a larger view.</li>
+    <li>Read CORA's note under the confidence bar: it says why the item was flagged.</li>
+  </ul>
+
+  <h3>3. Decide</h3>
+  <ul>
+    <li><span class="ui">Accept</span> if it matches the protocol.</li>
+    <li>Fix any field, then click <span class="ui">Accept with edits</span>.</li>
+    <li><span class="ui">Reject</span> if the item isn't a real requirement.</li>
+    <li>Add an optional <span class="ui">Comment</span> explaining a change or rejection. <span class="ui">Undo decision</span> reopens an item.</li>
+    <li>Shortcuts: <kbd>A</kbd> accept, <kbd>R</kbd> reject, <kbd>←</kbd> <kbd>→</kbd> previous and next item.</li>
+  </ul>
+
+  <h3>4. Sign off</h3>
+  <ol>
+    <li>When the screen says <span class="ui">All flagged items reviewed</span>, click <span class="ui">Download PDF</span>.</li>
+    <li>Check the unflagged items too: a high confidence level doesn't guarantee an item is correct.</li>
+    <li>Print the PDF and complete the <span class="ui">Reviewer sign-off</span> block (name, signature, date) before the plan is used.</li>
+  </ol>
+
+  <section class="faq-section">
+    <h2>Frequently asked questions</h2>
+    <dl class="faq">
+      <dt>Why was this item flagged?</dt>
+      <dd>CORA's confidence was below 70%, usually because the protocol is ambiguous, the information is spread across several places, or a table was hard to read. The note on the item says which. Check it against the source page, then accept, edit or reject it.</dd>
+
+      <dt>Why is a category empty?</dt>
+      <dd>Either the protocol doesn't cover it, or CORA couldn't find it; the section's note says what to check. Billing is always empty for now, because CORA doesn't yet work out who pays for each item. If you know the protocol covers a category, add it to the plan yourself after export.</dd>
+
+      <dt>Is my protocol saved anywhere?</dt>
+      <dd>The PDF and its text are never stored. If your site has turned on saved plans, the extracted plan and review decisions are kept so the same protocol opens instantly next time; otherwise nothing is kept after you leave the page.</dd>
+
+      <dt>What happens if the AI part is down?</dt>
+      <dd>CORA still produces a plan using a simpler keyword search and shows a <span class="ui">Limited extraction</span> banner explaining why. That plan has fewer details and more gaps, so review it carefully, or try again later.</dd>
+
+      <dt>Can I upload a scanned paper protocol?</dt>
+      <dd>Yes. CORA reads scanned pages with text recognition (OCR), which is slower and less accurate than a PDF with selectable text. Scans with more than 50 scanned pages are refused, and handwriting or poor-quality scans won't read well.</dd>
+
+      <dt>Can I change the plan after exporting it?</dt>
+      <dd>Yes. While the plan is still open, go back to the review queue, use <span class="ui">Undo decision</span> to change a flagged item, and export again. The Word file can also be edited directly. Each export is a snapshot; it doesn't update itself.</dd>
+
+      <dt>Does CORA replace reviewing the protocol?</dt>
+      <dd>No. CORA is a starting point that saves time. Qualified study staff must check the plan against the protocol and sign it off before it's used.</dd>
+    </dl>
+  </section>
+
+  <section class="more">
+    <h2>More detail <span class="optional">(optional)</span></h2>
+
+    <h3>What each category means</h3>
+    <dl class="cats">
+      <dt>Visit schedule</dt><dd>Each visit, with its timing and allowed window.</dd>
+      <dt>Procedures</dt><dd>What happens at each visit, from the Schedule of Activities.</dd>
+      <dt>Staffing</dt><dd>Roles the protocol names, with qualifications if it states them.</dd>
+      <dt>Safety reporting</dt><dd>What to report, to whom, and how fast.</dd>
+      <dt>Billing</dt><dd>Sponsor-paid vs. standard-of-care items. Not filled in yet.</dd>
+      <dt>Equipment</dt><dd>Devices and supplies the protocol requires.</dd>
+      <dt>Pharmacy</dt><dd>Study drug storage, preparation and accountability.</dd>
+      <dt>Technology</dt><dd>Systems the site must use, such as EDC or IWRS.</dd>
+    </dl>
+
+    <h3>How the confidence cutoff works</h3>
+    <p>CORA scores each item from 0 to 100% for how sure it is. Anything under 70% is flagged and goes into the review queue. The cutoff is a setting your administrator can change.</p>
+
+    <h3>What keyword fallback is</h3>
+    <p>If the AI step can't run (no connection, an error, or it returns nothing), CORA searches the text for known terms and table layouts instead. You still get a plan, under a <span class="ui">Limited extraction</span> banner, but with fewer details and more gaps.</p>
+
+    <h3>What CORA can't do yet</h3>
+    <ul>
+      <li>Work out billing designations or estimate staff effort (FTE).</li>
+      <li>Read protocols over 150 pages, scans with more than 50 scanned pages, or password-protected PDFs.</li>
+      <li>Edit items that weren't flagged; change those in the Word export.</li>
+    </ul>
+  </section>
+
+  <footer>CORA quick-start guide · Fall 2026 · Questions about setup or errors: contact your CORA administrator.</footer>
+</main>
+</body>
+</html>
