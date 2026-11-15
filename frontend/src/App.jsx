@@ -210,6 +210,8 @@ export default function App() {
           {view !== "upload" && (
             <button id="newBtn" className="btn btn-ghost" onClick={reset}>New protocol</button>
           )}
+          <a id="helpLink" className="btn btn-ghost" href={`${import.meta.env.BASE_URL}quick-start.html`}
+            target="_blank" rel="noopener noreferrer">Help</a>
         </div>
       </header>
 

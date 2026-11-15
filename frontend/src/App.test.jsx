@@ -85,6 +85,13 @@ describe("upload screen", () => {
     render(<App />);
     expect(screen.queryByRole("button", { name: "New protocol" })).not.toBeInTheDocument();
   });
+
+  it("links to the quick-start guide in a new tab", () => {
+    render(<App />);
+    const help = screen.getByRole("link", { name: "Help" });
+    expect(help).toHaveAttribute("href", "/quick-start.html");
+    expect(help).toHaveAttribute("target", "_blank");
+  });
 });
 
 describe("view transitions", () => {
@@ -427,7 +434,7 @@ describe("exports", () => {
     fetch.mockImplementation(() =>
       Promise.resolve(new Response("docx", { status: 200, headers: { "Content-Disposition": 'attachment; filename="drug-y-operational-plan.docx"' } }))
     );
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => { });
 
     await user.click(screen.getByRole("button", { name: "Download Word" }));
     await waitFor(() => expect(click).toHaveBeenCalled());
