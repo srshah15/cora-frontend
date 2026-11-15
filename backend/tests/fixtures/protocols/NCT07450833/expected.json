@@ -1,0 +1,551 @@
+{
+  "status": "VERIFIED",
+  "verified_by": "AMS",
+  "verified_on": "2026-11-15",
+  "nct_id": "NCT07450833",
+  "source_url": "https://clinicaltrials.gov/study/NCT07450833",
+  "curation_notes": [
+    "Source: Table 1 (SAD part, PDF pages 23-24) and Table 2 (MAD part, PDF pages 25-26). Page numbers below are PDF pages (printed page + 1).",
+    "The two parts have separate schedules with overlapping day labels, so visits are prefixed SAD/MAD.",
+    "'Confinement' and 'Ambulatory visit' rows describe the visit type, so they are recorded in visits[].type rather than as procedures.",
+    "A procedure is mapped to a visit for every x, including footnoted cells (for example weight-only cells under Weight/height).",
+    "Staffing lists site roles only. Sponsor roles (statistician, PK analyst, data management, monitors) are out of scope. Billing is not curated for this set."
+  ],
+  "visits": [
+    {
+      "id": "S-SCR",
+      "name": "SAD Screening",
+      "day": "Day -28 to -2",
+      "type": "Ambulatory",
+      "source_page": 23
+    },
+    {
+      "id": "S-D-1",
+      "name": "SAD Day -1 (check-in)",
+      "day": "Day -1",
+      "type": "Confinement",
+      "source_page": 23
+    },
+    {
+      "id": "S-D1",
+      "name": "SAD Day 1 (dosing)",
+      "day": "Day 1",
+      "type": "Confinement",
+      "source_page": 23
+    },
+    {
+      "id": "S-D2",
+      "name": "SAD Day 2",
+      "day": "Day 2 (24 h)",
+      "window": "±30 min",
+      "type": "Confinement",
+      "source_page": 23
+    },
+    {
+      "id": "S-D3",
+      "name": "SAD Day 3",
+      "day": "Day 3 (48 h)",
+      "window": "±1 h",
+      "type": "Confinement",
+      "source_page": 23
+    },
+    {
+      "id": "S-D4",
+      "name": "SAD Day 4",
+      "day": "Day 4 (72 h)",
+      "window": "±1 h",
+      "type": "Confinement",
+      "source_page": 23
+    },
+    {
+      "id": "S-EOS",
+      "name": "SAD Day 8 End of Study",
+      "day": "Day 8 (168 h)",
+      "window": "±2 h",
+      "type": "Ambulatory",
+      "source_page": 23
+    },
+    {
+      "id": "M-SCR",
+      "name": "MAD Screening",
+      "day": "Day -28 to -2",
+      "type": "Ambulatory",
+      "source_page": 25
+    },
+    {
+      "id": "M-D-1",
+      "name": "MAD Day -1 (check-in)",
+      "day": "Day -1",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D1",
+      "name": "MAD Day 1",
+      "day": "Day 1",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D2",
+      "name": "MAD Day 2",
+      "day": "Day 2",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D3",
+      "name": "MAD Day 3",
+      "day": "Day 3",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D4",
+      "name": "MAD Day 4",
+      "day": "Day 4",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D5",
+      "name": "MAD Day 5",
+      "day": "Day 5",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D6",
+      "name": "MAD Day 6",
+      "day": "Day 6",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D7",
+      "name": "MAD Day 7",
+      "day": "Day 7",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D8",
+      "name": "MAD Day 8 (discharge)",
+      "day": "Day 8",
+      "type": "Confinement",
+      "source_page": 25
+    },
+    {
+      "id": "M-D11",
+      "name": "MAD Day 11",
+      "day": "Day 11",
+      "type": "Ambulatory",
+      "source_page": 25
+    },
+    {
+      "id": "M-EOS",
+      "name": "MAD Day 14 End of Study",
+      "day": "Day 14",
+      "type": "Ambulatory",
+      "source_page": 25
+    }
+  ],
+  "procedures": [
+    {
+      "name": "Informed consent",
+      "visits": [
+        "S-SCR",
+        "M-SCR"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "Demography",
+      "visits": [
+        "S-SCR",
+        "M-SCR"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "Inclusion/exclusion criteria and medical history",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "M-SCR",
+        "M-D-1"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "Physical examination",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-D1",
+        "S-D2",
+        "S-D4",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-D1",
+        "M-D2",
+        "M-D3",
+        "M-D4",
+        "M-D5",
+        "M-D6",
+        "M-D7",
+        "M-D8",
+        "M-D11",
+        "M-EOS"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "Vital signs",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-D1",
+        "S-D2",
+        "S-D3",
+        "S-D4",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-D1",
+        "M-D2",
+        "M-D3",
+        "M-D4",
+        "M-D5",
+        "M-D6",
+        "M-D7",
+        "M-D8",
+        "M-D11",
+        "M-EOS"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "Laboratory assessment (hematology, biochemistry, coagulation)",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-D2",
+        "S-D4",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-D2",
+        "M-D5",
+        "M-D8",
+        "M-D11",
+        "M-EOS"
+      ],
+      "source_page": 23,
+      "notes": "Coagulation is listed in the MAD table only"
+    },
+    {
+      "name": "Urine analysis",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-D2",
+        "S-D3",
+        "S-D4",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-D2",
+        "M-D5",
+        "M-D8",
+        "M-D11",
+        "M-EOS"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "ECG",
+      "visits": [
+        "S-SCR",
+        "S-D1",
+        "S-D2",
+        "S-EOS",
+        "M-SCR",
+        "M-D1",
+        "M-D2",
+        "M-D4",
+        "M-D7",
+        "M-EOS"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "SARS-CoV-2 antigen test",
+      "visits": [
+        "S-SCR",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-EOS"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "SARS-CoV-2 PCR test",
+      "visits": [
+        "S-D-1",
+        "S-D4"
+      ],
+      "source_page": 23
+    },
+    {
+      "name": "Viral screening (HIV, hepatitis)",
+      "visits": [
+        "S-SCR",
+        "M-SCR"
+      ],
+      "source_page": 24
+    },
+    {
+      "name": "Drug screening",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-EOS"
+      ],
+      "source_page": 24
+    },
+    {
+      "name": "Breath alcohol test",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-EOS"
+      ],
+      "source_page": 24
+    },
+    {
+      "name": "Weight/height (BMI)",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-D4",
+        "M-D8",
+        "M-D11",
+        "M-EOS"
+      ],
+      "source_page": 24,
+      "notes": "Weight only after screening"
+    },
+    {
+      "name": "Administer study drug",
+      "visits": [
+        "S-D1",
+        "M-D1",
+        "M-D2",
+        "M-D3",
+        "M-D4",
+        "M-D5",
+        "M-D6",
+        "M-D7"
+      ],
+      "source_page": 24
+    },
+    {
+      "name": "Plasma PK sample collection",
+      "visits": [
+        "S-D1",
+        "S-D2",
+        "S-D3",
+        "S-D4",
+        "S-EOS",
+        "M-D1",
+        "M-D2",
+        "M-D3",
+        "M-D4",
+        "M-D5",
+        "M-D6",
+        "M-D7",
+        "M-D8",
+        "M-D11",
+        "M-EOS"
+      ],
+      "source_page": 24
+    },
+    {
+      "name": "PD sample (TKT activity)",
+      "visits": [
+        "S-D1",
+        "S-D2",
+        "S-D3",
+        "S-D4",
+        "S-EOS",
+        "M-D1",
+        "M-D2",
+        "M-D4",
+        "M-D5",
+        "M-D7",
+        "M-D8"
+      ],
+      "source_page": 24
+    },
+    {
+      "name": "Adverse events",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-D1",
+        "S-D2",
+        "S-D3",
+        "S-D4",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-D1",
+        "M-D2",
+        "M-D3",
+        "M-D4",
+        "M-D5",
+        "M-D6",
+        "M-D7",
+        "M-D8",
+        "M-D11",
+        "M-EOS"
+      ],
+      "source_page": 24
+    },
+    {
+      "name": "Prior and/or concomitant medications",
+      "visits": [
+        "S-SCR",
+        "S-D-1",
+        "S-D1",
+        "S-D2",
+        "S-D3",
+        "S-D4",
+        "S-EOS",
+        "M-SCR",
+        "M-D-1",
+        "M-D1",
+        "M-D2",
+        "M-D3",
+        "M-D4",
+        "M-D5",
+        "M-D6",
+        "M-D7",
+        "M-D8",
+        "M-D11",
+        "M-EOS"
+      ],
+      "source_page": 24
+    }
+  ],
+  "staffing": [
+    {
+      "role": "Principal Investigator",
+      "source_page": 49,
+      "responsibilities": "Administers IMP; final say on dose escalation with the Safety Review Committee; reviews pre-dose safety labs"
+    },
+    {
+      "role": "Sub-investigator",
+      "source_page": 60,
+      "responsibilities": "Delegated medical doctor / co-investigator; at least one qualified physician on site at all times during confinement",
+      "notes": "Protocol says 'co-investigator', 'delegated medical doctor', 'qualified physician'"
+    },
+    {
+      "role": "Study nurse",
+      "source_page": 49,
+      "responsibilities": "Checks prepared IMP against the dosing scheme with the PI before each dose"
+    },
+    {
+      "role": "Pharmacist",
+      "source_page": 39,
+      "responsibilities": "Prepares IMP for each dosing day after SRC dose decision"
+    },
+    {
+      "role": "Emergency physician",
+      "source_page": 60,
+      "responsibilities": "On site with an ambulance on dosing days (12 h SAD, 4 h MAD); on call otherwise"
+    },
+    {
+      "role": "Cardiologist",
+      "source_page": 60,
+      "responsibilities": "Two cardiologists on call for the whole study"
+    }
+  ],
+  "safety": [
+    {
+      "event": "Serious adverse event",
+      "timeline": "Within 24 hours of knowledge",
+      "recipient": "Sponsor and CRO safety contacts",
+      "source_page": 74
+    },
+    {
+      "event": "Safety Review Committee dose-escalation review",
+      "timeline": "Before each new cohort/dose level",
+      "recipient": "Safety Review Committee",
+      "source_page": 38
+    }
+  ],
+  "billing": [],
+  "equipment": [
+    {
+      "item": "12-lead ECG machine",
+      "source_page": 61
+    },
+    {
+      "item": "Refrigerated centrifuge (4°C)",
+      "source_page": 64
+    },
+    {
+      "item": "-80°C freezer",
+      "source_page": 64
+    },
+    {
+      "item": "Ice/water bath or cooling device",
+      "source_page": 64
+    },
+    {
+      "item": "Intravenous catheter",
+      "source_page": 64
+    },
+    {
+      "item": "Breath alcohol tester",
+      "source_page": 24
+    },
+    {
+      "item": "Ambulance on standby",
+      "source_page": 60
+    }
+  ],
+  "pharmacy": [
+    {
+      "item": "IMP storage at room temperature in a secure, temperature-controlled area",
+      "source_page": 48
+    },
+    {
+      "item": "IMP preparation per dose level",
+      "source_page": 39
+    },
+    {
+      "item": "Drug accountability and destruction records",
+      "source_page": 49
+    }
+  ],
+  "technology": [
+    {
+      "system": "eCRF / electronic data capture",
+      "source_page": 61
+    }
+  ]
+}
