@@ -59,13 +59,15 @@ def test_request_sends_page_numbered_text_and_the_schema(extractor, llm_mode, ll
     extractor.extract(parsed)
 
     call = llm_mode.calls[0]
-    prompt = call["messages"][0]["content"]
+    block = call["messages"][0]["content"][0]
+    prompt = block["text"]
+    assert block["cache_control"] == {"type": "ephemeral"}  # later rounds reuse the cached protocol
     assert '<page n="1">' in prompt and "Synthetic Test Study of Drug X" in prompt
     assert call["tools"] == [llm_extractor.PLAN_TOOL]
     # Not forced (current models reject that), and one call only: otherwise the
     # model splits a long plan across several partial submit_plan calls.
     assert call["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
-    assert "exactly once with the complete" in call["system"]
+    assert "in parts" in call["system"]
     assert call["model"] == "claude-opus-5-5"
     assert call["output_config"] == {"effort": "medium"}
     assert "Never fill a gap" in call["system"]  # the no-invention rule
@@ -225,7 +227,7 @@ def test_text_reply_without_the_tool_call_is_invalid_output(extractor, llm_mode,
 def test_schema_invalid_json_is_invalid_output(extractor, llm_mode, llm_payload, parsed):
     del llm_payload["visits"]            # a required key is missing
     llm_payload["procedures"] = "none"   # wrong type
-    llm_mode.queue(llm_payload)
+    llm_mode.queue(llm_payload, "That's everything.")  # asked for visits, it answers in text
     with pytest.raises(LLMError) as err:
         extractor.extract(parsed)
     assert err.value.reason == "invalid_output"
@@ -296,3 +298,15 @@ def test_llm_error_never_carries_provider_text(extractor, llm_mode, parsed, api_
     text = f"{err.value} {err.value.user_message} {err.value.__cause__} {err.value.args}"
     assert "LEAKED" not in text and "Drug X" not in text
     assert err.value.__cause__ is None  # the SDK exception is not chained
+
+
+def test_plan_sent_in_parts_is_merged(extractor, llm_mode, llm_payload, parsed):
+    first = {k: llm_payload[k] for k in ("protocol", "visits", "procedures")}
+    rest = {k: v for k, v in llm_payload.items() if k not in first}
+    llm_mode.queue(first, rest)
+    plan = extractor.extract(parsed)
+    assert [v.id for v in plan.visits] == ["V1", "V2", "V3"]
+    assert [s.role for s in plan.staffing] == ["Principal Investigator", "Study Coordinator"]
+    # The second round tells the model what was still missing.
+    reply = llm_mode.calls[1]["messages"][-1]["content"][0]
+    assert reply["type"] == "tool_result" and "staffing" in reply["content"]

@@ -25,9 +25,11 @@ async function errorFrom(res) {
   return new ApiError("server", detail ? detail.slice(0, 200) : `Server returned ${res.status}`, res.status);
 }
 
-export async function uploadProtocol(file, { timeoutMs = uploadTimeoutMs() } = {}) {
+// mode: "llm" or "keyword" from the upload screen; omitted = server default.
+export async function uploadProtocol(file, { mode, timeoutMs = uploadTimeoutMs() } = {}) {
   const body = new FormData();
   body.append("file", file);
+  if (mode) body.append("mode", mode);
 
   // fetch has no timeout of its own: without this the processing screen could
   // spin forever. AbortController lets us cancel the request after a limit.
@@ -51,6 +53,18 @@ export async function uploadProtocol(file, { timeoutMs = uploadTimeoutMs() } = {
   }
   if (!res.ok) throw await errorFrom(res);
   return res.json();
+}
+
+// { default_mode, ai_available } for the AI / keyword choice, or null if the
+// backend can't be reached or is too old to say (the upload then uses the
+// server's default and the choice is hidden).
+export async function getClientConfig() {
+  try {
+    const res = await fetch(`${apiBase()}/api/config`);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
 }
 
 async function send(method, path, json) {

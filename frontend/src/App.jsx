@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
-import { deleteReview, exportDocx, saveReview, uploadProtocol } from "./api.js";
+import { deleteReview, exportDocx, getClientConfig, saveReview, uploadProtocol } from "./api.js";
 import ProcessingView from "./components/ProcessingView.jsx";
 import ResultsView from "./components/ResultsView.jsx";
 import ReviewView from "./components/ReviewView.jsx";
@@ -29,6 +29,10 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [pdfUrl, setPdfUrl] = useState(null); // object URL of the uploaded PDF, for the source pane
+  // AI or keyword extraction for the next upload. null until the backend says
+  // what it supports; then the choice appears on the upload screen.
+  const [mode, setMode] = useState(null);
+  const [aiAvailable, setAiAvailable] = useState(false);
 
   // Refs hold values that must survive re-renders but shouldn't cause one.
   const pending = useRef(null); // the plan waiting for the processing animation to finish
@@ -56,6 +60,19 @@ export default function App() {
     window.scrollTo?.(0, 0);
   }, [view]);
 
+  useEffect(() => {
+    let alive = true;
+    getClientConfig().then((cfg) => {
+      if (!alive || !cfg) return;
+      setAiAvailable(Boolean(cfg.ai_available));
+      // Default to AI when it's available, otherwise keyword search.
+      setMode((m) => m ?? (cfg.ai_available ? "llm" : "keyword"));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // ---------- upload ----------
   async function handleFile(file) {
     const problem = validateFile(file);
@@ -66,7 +83,7 @@ export default function App() {
     const id = ++requestId.current;
     dispatch({ type: "PROCESSING_STARTED", filename: file.name });
     try {
-      const result = await uploadProtocol(file);
+      const result = await uploadProtocol(file, { mode });
       if (id !== requestId.current) return; // the user started over meanwhile
       pending.current = { plan: result, file };
       dispatch({ type: "PROCESSING_FINISHING", perStep: timing.finishStep });
@@ -217,7 +234,15 @@ export default function App() {
 
       <main>
         {view === "upload" && (
-          <UploadView error={state.uploadError} apiBase={apiBase()} onFile={handleFile} onSample={runSample} />
+          <UploadView
+            error={state.uploadError}
+            apiBase={apiBase()}
+            onFile={handleFile}
+            onSample={runSample}
+            mode={mode}
+            aiAvailable={aiAvailable}
+            onModeChange={setMode}
+          />
         )}
         {view === "processing" && (
           <ProcessingView

@@ -33,6 +33,7 @@ from pydantic import BaseModel, ValidationError
 from config import ConfigError, Settings
 from extract import ParsedDocument, find_registry_id
 from llm_schema import LLMPlan
+from page_select import select_pages
 from models import (
     BillingItem,
     EquipmentItem,
@@ -53,9 +54,9 @@ from models import (
 REVIEW_THRESHOLD = 0.7
 # What "uncertain" items are capped to, so they are always flagged.
 CAPPED = 0.69
-# Enough for a large plan; small enough that a non-streaming request finishes
-# inside the timeout.
-MAX_OUTPUT_TOKENS = 16000
+# Enough for a large plan (thinking counts toward it too). 16000 cut off a
+# 120-page plan mid-way. The SDK refuses non-streaming requests above ~21333.
+MAX_OUTPUT_TOKENS = 21000
 # About 500K tokens. Far above any 150-page protocol; a guard so that an
 # over-long input fails clearly instead of being cut off silently.
 MAX_INPUT_CHARS = 2_000_000
@@ -91,24 +92,29 @@ visits, leave visits empty and lower the confidence.
 training or certifications it requires. Give fte only if the protocol states a \
 number; otherwise null. Do not estimate effort.
 7. Do not include any information about individual participants.
+8. Keep notes to one short sentence, and leave notes null when you are \
+confident and there is nothing to add.
 
-When you are done, call the submit_plan tool exactly once with the complete \
-plan: every field (protocol, visits, procedures, staffing, safety, billing, \
-equipment, pharmacy_involved, pharmacy_items, technology) in that single call. \
-You only get one call; there is no follow-up, and a partial plan is rejected. \
-Read the whole protocol before you call it: nearly every protocol has a \
-schedule of activities, procedures and study staff, so fill those sections in \
-full. Leave a section empty only when the protocol says nothing about it. Do \
-not reply with text.
+Submit the plan with the submit_plan tool, in parts: \
+first protocol, visits and procedures; then staffing, safety and billing; then \
+equipment, pharmacy_involved, pharmacy_items and technology. Each call holds \
+only the fields of that part. After each call you will be told which fields \
+are still needed. Nearly every protocol has a schedule of activities, \
+procedures and study staff, so fill those sections in full. Leave a section \
+empty only when the protocol says nothing about it. Do not reply with text.
 """
 
-# The plan comes back as this tool's input. Not strict on purpose: a strict
-# tool's schema is compiled into a grammar, and LLMPlan is too large for that.
+# The plan comes back as this tool's input, in parts (see extract()). Not
+# strict on purpose: a strict tool's schema is compiled into a grammar, and
+# LLMPlan is too large for that.
 PLAN_TOOL = {
     "name": "submit_plan",
-    "description": "Submit the operational plan extracted from the protocol. Call this exactly once with the complete plan.",
+    "description": "Submit part of the operational plan. Include only the fields of the current part; you will be told what is still needed.",
     "input_schema": LLMPlan.model_json_schema(),
 }
+PLAN_FIELDS = tuple(LLMPlan.model_fields)
+# Three parts plus one spare round for anything the model left out.
+MAX_ROUNDS = 4
 
 # Fixed, safe sentences for each failure. The user sees these; they never
 # contain the provider's response, the key, or protocol text.
@@ -177,12 +183,24 @@ def make_client(settings: Settings) -> anthropic.Anthropic:
     )
 
 
-def build_prompt(pages: List[str]) -> str:
-    """Wrap each page in a numbered tag so the model can cite pages."""
-    parts = [f'<page n="{i}">\n{text.strip()}\n</page>' for i, text in enumerate(pages, start=1)]
+def build_prompt(pages: List[str], keep: Optional[List[int]] = None) -> str:
+    """Wrap each page in a numbered tag so the model can cite pages.
+
+    keep: 0-based indexes of the pages to include (page_select.select_pages).
+    Tags carry the original PDF page number either way, so a citation points
+    at the right page even when pages in between were left out.
+    """
+    indexes = list(range(len(pages))) if keep is None else keep
+    parts = [f'<page n="{i + 1}">\n{pages[i].strip()}\n</page>' for i in indexes]
+    note = ""
+    if len(indexes) < len(pages):
+        note = (
+            f"Only the {len(indexes)} pages most relevant to running the study are included, out of "
+            f"{len(pages)}. Page numbers are the original PDF page numbers.\n\n"
+        )
     return (
         "<protocol>\n" + "\n".join(parts) + "\n</protocol>\n\n"
-        "Extract the operational plan from this protocol."
+        + note + "Extract the operational plan from this protocol."
     )
 
 
@@ -387,46 +405,42 @@ class ClaudeExtractor:
 
     def extract(self, parsed: ParsedDocument, *, deadline: Optional[float] = None) -> OperationalPlan:
         """Raises LLMError (with a reason code) if the model can't be used."""
-        prompt = build_prompt(parsed.pages)
+        # Long protocols: send only the operational pages (page_select.py).
+        prompt = build_prompt(parsed.pages, select_pages(parsed.pages))
         if len(prompt) > MAX_INPUT_CHARS:
             raise LLMError("too_long")
 
-        # Never wait past the request's overall deadline.
-        timeout = self.timeout
-        if deadline is not None:
-            remaining = deadline - self._clock()
-            if remaining < 5:
-                raise LLMError("deadline")
-            timeout = min(timeout, remaining)
+        # The plan arrives in parts, one submit_plan call per round: asking for
+        # one huge answer made the model either stop after the first part or
+        # run out of output room on long protocols. Each round we say what is
+        # still missing. The protocol text is cached, so later rounds read it
+        # at a fraction of the price.
+        messages: list = [
+            {"role": "user", "content": [{"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}]}
+        ]
+        raw: dict = {}
+        for _ in range(MAX_ROUNDS):
+            response = self._call(messages, deadline)
+            stop = getattr(response, "stop_reason", None)
+            if stop == "refusal":
+                raise LLMError("refused")
+            if stop == "max_tokens":
+                raise LLMError("truncated")
+            part = _plan_input(response)
+            if not isinstance(part, dict):
+                break  # answered in text: no more parts are coming
+            raw.update({k: v for k, v in part.items() if k in PLAN_FIELDS})
+            missing = [f for f in PLAN_FIELDS if f not in raw]
+            if not missing:
+                break
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": [{
+                "type": "tool_result",
+                "tool_use_id": _plan_call_id(response),
+                "content": f"Received. Still needed: {', '.join(missing)}. Call submit_plan with those fields.",
+            }]})
 
-        try:
-            response = self.client.with_options(timeout=timeout).messages.create(
-                model=self.model,
-                max_tokens=MAX_OUTPUT_TOKENS,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": prompt}],
-                tools=[PLAN_TOOL],
-                # "auto", not forced: current models reject a forced
-                # tool_choice. The system prompt tells the model to call it.
-                # One call only: on longer protocols the model otherwise
-                # splits the plan across several partial submit_plan calls
-                # and waits for replies that never come.
-                tool_choice={"type": "auto", "disable_parallel_tool_use": True},
-                output_config={"effort": self.effort},
-            )
-        except LLMError:
-            raise
-        except Exception as exc:  # mapped to a safe reason; details are not kept
-            raise map_error(exc) from None
-
-        stop = getattr(response, "stop_reason", None)
-        if stop == "refusal":
-            raise LLMError("refused")
-        if stop == "max_tokens":
-            raise LLMError("truncated")
-
-        raw = _plan_input(response)
-        if raw is None:
+        if not raw:
             raise LLMError("invalid_output")  # answered in text, no plan
         try:
             llm_plan = LLMPlan.model_validate(raw)
@@ -438,6 +452,38 @@ class ClaudeExtractor:
             # to run, so the pipeline's single retry is likely to help.
             raise LLMError("empty_plan", retryable=True)
         return plan
+
+    def _call(self, messages: list, deadline: Optional[float]) -> Any:
+        """One model round. Never waits past the request's overall deadline."""
+        timeout = self.timeout
+        if deadline is not None:
+            remaining = deadline - self._clock()
+            if remaining < 5:
+                raise LLMError("deadline")
+            timeout = min(timeout, remaining)
+        try:
+            return self.client.with_options(timeout=timeout).messages.create(
+                model=self.model,
+                max_tokens=MAX_OUTPUT_TOKENS,
+                system=SYSTEM_PROMPT,
+                messages=messages,
+                tools=[PLAN_TOOL],
+                # "auto", not forced: current models reject a forced
+                # tool_choice. One call per round, so every part gets a reply.
+                tool_choice={"type": "auto", "disable_parallel_tool_use": True},
+                output_config={"effort": self.effort},
+            )
+        except LLMError:
+            raise
+        except Exception as exc:  # mapped to a safe reason; details are not kept
+            raise map_error(exc) from None
+
+
+def _plan_call_id(response: Any) -> Optional[str]:
+    for block in getattr(response, "content", None) or []:
+        if getattr(block, "type", None) == "tool_use" and getattr(block, "name", None) == PLAN_TOOL["name"]:
+            return getattr(block, "id", None)
+    return None
 
 
 def _plan_input(response: Any) -> Any:

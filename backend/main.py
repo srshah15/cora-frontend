@@ -10,17 +10,17 @@ from typing import Optional
 
 import anyio
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, UploadFile, File, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Form, Header, UploadFile, File, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 import db
 import pipeline
 import repository as repo
 from api_models import ProtocolResponse
-from config import cors_origins, get_settings
+from config import KEYWORD, LLM, Settings, cors_origins, get_settings
 from docx_export import DOCX_MEDIA_TYPE, DocxExportRequest, build_plan_docx, export_filename
 from extract import ExtractionError, ProtocolTooLongError
-from extractor import Extractor, get_extractor
+from extractor import Extractor, KeywordExtractor, get_extractor
 from models import OperationalPlan
 from routes_plans import parse_reviewer_id, router as plans_router
 
@@ -97,22 +97,62 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/config")
+def client_config():
+    """What the upload screen needs to offer the AI / keyword choice.
+
+    ai_available is true when an API key is set, so AI extraction can be
+    chosen per upload even if the server's default (EXTRACTOR) is keyword.
+    Never includes the key itself.
+    """
+    settings = get_settings()
+    return {"default_mode": settings.extractor, "ai_available": bool(settings.anthropic_api_key)}
+
+
+def choose_extractor(mode: Optional[str], default: Extractor, settings: Settings) -> Extractor:
+    """The extractor for one upload: the one the user picked, else the default."""
+    if not mode:
+        return default
+    mode = mode.strip().lower()
+    if mode == KEYWORD:
+        return default if default.name == KEYWORD else KeywordExtractor()
+    if mode == LLM:
+        if default.name != KEYWORD:
+            return default
+        if not settings.anthropic_api_key:
+            raise HTTPException(
+                status_code=400,
+                detail="AI extraction isn't set up on this server (LLM_API_KEY is missing). Choose keyword search instead.",
+            )
+        from llm_extractor import ClaudeExtractor  # keyword-only servers never load the SDK
+
+        return ClaudeExtractor(settings)
+    raise HTTPException(status_code=400, detail="Extraction mode must be 'llm' or 'keyword'.")
+
+
 def _lookup(content_hash: str, reviewer: Optional[str], llm_mode: bool):
-    """Find a stored plan for this exact file. Returns (response, stale_plan_id).
+    """Find a stored plan for this exact file.
+
+    Returns (response, stale_plan_id, may_store).
 
     A keyword-only plan stored before the LLM was switched on is "stale": we
     extract again instead of serving it forever, and replace it afterwards.
+    A keyword upload of a file that already has an AI plan is extracted fresh
+    (the user asked for keyword results) but not stored, so it never
+    overwrites the AI plan or its review decisions.
     """
     with db.session_scope() as s:
         stored = repo.find_by_hash(s, content_hash)
         if stored is None:
-            return None, None
+            return None, None, True
         if llm_mode and stored.extraction_method == "keyword":
-            return None, stored.plan_id
+            return None, stored.plan_id, True
+        if not llm_mode and stored.extraction_method != "keyword":
+            return None, None, False
         reviews = repo.reviews_for(s, stored.plan_id, reviewer) if reviewer else {}
         return ProtocolResponse(
             **stored.plan_json, plan_id=stored.plan_id, reused=True, version=stored.version, reviews=reviews
-        ), None
+        ), None, False
 
 
 def _store(content_hash: str, plan: OperationalPlan, stale_plan_id: Optional[str]) -> repo.Stored:
@@ -131,7 +171,9 @@ async def upload_protocol(
     x_reviewer_id: Optional[str] = Header(default=None),
     # The route asks for "an Extractor" and FastAPI supplies whichever one the
     # configuration names. Nothing in this file knows about Claude.
-    extractor: Extractor = Depends(get_extractor),
+    default_extractor: Extractor = Depends(get_extractor),
+    # "llm" or "keyword", chosen on the upload screen. Empty = server default.
+    mode: Optional[str] = Form(default=None),
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(
@@ -154,6 +196,7 @@ async def upload_protocol(
         )
 
     settings = get_settings()
+    extractor = choose_extractor(mode, default_extractor, settings)
     request.state.upload_bytes = len(contents)
     reviewer = parse_reviewer_id(x_reviewer_id)
     llm_mode = extractor.name != "keyword"
@@ -164,8 +207,9 @@ async def upload_protocol(
     # Checking it BEFORE extraction is what makes a repeat upload instant and free.
     content_hash = hashlib.sha256(contents).hexdigest()
     stale_plan_id = None
+    may_store = True
     if db.is_configured():
-        hit, stale_plan_id = await anyio.to_thread.run_sync(_lookup, content_hash, reviewer, llm_mode)
+        hit, stale_plan_id, may_store = await anyio.to_thread.run_sync(_lookup, content_hash, reviewer, llm_mode)
         if hit is not None:
             log.info("protocol_reused plan_id=%s version=%s", hit.plan_id, hit.version)
             return hit
@@ -209,7 +253,7 @@ async def upload_protocol(
     # saving the keyword-only result would serve it to every later upload of
     # this file even after the outage ends.
     is_fallback = bool(plan.extraction_info and plan.extraction_info.fallback)
-    if db.is_configured() and not is_fallback:
+    if db.is_configured() and not is_fallback and may_store:
         stored = await anyio.to_thread.run_sync(_store, content_hash, plan, stale_plan_id)
         return ProtocolResponse(
             **stored.plan_json, plan_id=stored.plan_id, version=stored.version,

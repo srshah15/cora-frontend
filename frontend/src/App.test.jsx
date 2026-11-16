@@ -43,6 +43,9 @@ async function uploadPlan(plan = PLAN, user = userEvent.setup()) {
   return user;
 }
 
+// fetch calls that uploaded a protocol (the app also asks /api/config on load).
+const uploadCalls = () => fetch.mock.calls.filter(([url]) => String(url).endsWith("/api/protocols"));
+
 const section = (name) => screen.getByRole("heading", { level: 2, name }).closest("section");
 
 describe("PDF validation", () => {
@@ -70,7 +73,7 @@ describe("PDF validation", () => {
     // applyAccept: false lets the test hand over a file the picker would hide.
     await userEvent.setup({ applyAccept: false }).upload(input, new File(["x"], "notes.txt", { type: "text/plain" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/doesn't look like a PDF/);
-    expect(fetch).not.toHaveBeenCalled();
+    expect(uploadCalls()).toHaveLength(0);
   });
 });
 
@@ -121,7 +124,7 @@ describe("view transitions", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: "Try a sample protocol" }));
     expect(await screen.findByRole("heading", { name: SAMPLE_PLAN.protocol.title })).toBeInTheDocument();
     expect(screen.getByText("Sample data")).toBeInTheDocument();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(uploadCalls()).toHaveLength(0);
   });
 
   it("ignores a late answer after the user started over", async () => {
@@ -450,5 +453,56 @@ describe("exports", () => {
     fetch.mockImplementation(() => Promise.reject(new TypeError("Failed to fetch")));
     await user.click(screen.getByRole("button", { name: "Download Word" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Couldn't reach the backend");
+  });
+});
+
+describe("extraction method choice", () => {
+  // Answers /api/config with `config` (or fails it), and every upload with PLAN.
+  function backend(config) {
+    fetch.mockImplementation((url) => {
+      if (String(url).endsWith("/api/config")) {
+        return config ? Promise.resolve(json(config)) : Promise.reject(new TypeError("Failed to fetch"));
+      }
+      return Promise.resolve(json(PLAN));
+    });
+  }
+  const sentMode = () => uploadCalls()[0][1].body.get("mode");
+
+  it("defaults to AI when the server has a key, and sends that choice", async () => {
+    backend({ default_mode: "keyword", ai_available: true });
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByRole("radio", { name: /AI extraction/ })).toBeChecked();
+    await user.upload(screen.getByLabelText("Protocol PDF"), pdfFile());
+    await screen.findByRole("heading", { name: PLAN.protocol.title });
+    expect(sentMode()).toBe("llm");
+  });
+
+  it("sends keyword when the user picks keyword search", async () => {
+    backend({ default_mode: "llm", ai_available: true });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole("radio", { name: /Keyword search/ }));
+    await user.upload(screen.getByLabelText("Protocol PDF"), pdfFile());
+    await screen.findByRole("heading", { name: PLAN.protocol.title });
+    expect(sentMode()).toBe("keyword");
+  });
+
+  it("disables AI and explains why when the server has no key", async () => {
+    backend({ default_mode: "keyword", ai_available: false });
+    render(<App />);
+    expect(await screen.findByRole("radio", { name: /AI extraction/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Keyword search/ })).toBeChecked();
+    expect(screen.getByText(/Not set up on this server/)).toBeInTheDocument();
+  });
+
+  it("hides the choice and uses the server default if the backend can't say", async () => {
+    backend(null);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.upload(screen.getByLabelText("Protocol PDF"), pdfFile());
+    await screen.findByRole("heading", { name: PLAN.protocol.title });
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(sentMode()).toBeNull();
   });
 });

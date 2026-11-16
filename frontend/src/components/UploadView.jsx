@@ -23,7 +23,49 @@ export function errorText(error, apiBase) {
   return `Processing failed. ${error.message}`;
 }
 
-export default function UploadView({ error, apiBase, onFile, onSample }) {
+const MODES = [
+  {
+    key: "llm",
+    title: "AI extraction",
+    detail: "Claude reads the protocol: visit schedule, procedures by visit, staffing, billing. About a minute; small API cost.",
+  },
+  {
+    key: "keyword",
+    title: "Keyword search",
+    detail: "Instant and free. Finds fewer details and can miss visits that aren't in a clear schedule table.",
+  },
+];
+
+// Hidden until the backend has said what it supports (mode is null before that).
+function ModeChoice({ mode, aiAvailable, onChange }) {
+  if (!mode) return null;
+  return (
+    <fieldset className="mode-choice">
+      <legend>Extraction method</legend>
+      {MODES.map((m) => {
+        const disabled = m.key === "llm" && !aiAvailable;
+        return (
+          <label key={m.key} className={`mode-option${mode === m.key ? " selected" : ""}${disabled ? " disabled" : ""}`}>
+            <input
+              type="radio"
+              name="extraction-mode"
+              value={m.key}
+              checked={mode === m.key}
+              disabled={disabled}
+              onChange={() => onChange(m.key)}
+            />
+            <span>
+              <strong>{m.title}</strong>
+              <span className="mode-detail">{disabled ? "Not set up on this server (no API key)." : m.detail}</span>
+            </span>
+          </label>
+        );
+      })}
+    </fieldset>
+  );
+}
+
+export default function UploadView({ error, apiBase, onFile, onSample, mode = null, aiAvailable = false, onModeChange = () => {} }) {
   const input = useRef(null);
   const [drag, setDrag] = useState(false);
 
@@ -41,6 +83,8 @@ export default function UploadView({ error, apiBase, onFile, onSample }) {
           safety reporting, billing triggers and resource needs, then shows a draft for you to review.
         </p>
       </div>
+
+      <ModeChoice mode={mode} aiAvailable={aiAvailable} onChange={onModeChange} />
 
       <label
         id="dropzone"
