@@ -1,180 +1,231 @@
 # CORA: Clinical Operations Research Assistant
 
-## Repository Layout
-- `frontend/`: web app
-- `backend/`: FastAPI and extraction code
-- `backend/.env.example`: template for future backend configuration
-- `.gitignore`: excludes secrets, environments, dependencies, caches, build output, and OS files
+CORA reads a clinical trial protocol PDF and drafts an operational plan: visits, procedures, staffing, safety reporting, billing, equipment, pharmacy and technology. A person then reviews and exports the plan.
 
-## Setup
-### Configuration
-The backend reads its settings from environment variables, or from `backend/.env` (never committed). All of them are optional.
+## Architecture
+- **Frontend:** React 19 + Vite 8 + Tailwind 4 (`frontend/`). PDF export is built in the browser (jsPDF).
+- **Backend:** FastAPI (`backend/`). Extracts the plan from the PDF and builds the Word (.docx) export.
+- **Extractor:** `keyword` (default, offline) or `llm` (Claude API). Users can pick either one per upload when a key is set. OCR for scanned pages uses Tesseract.
+- **Database (optional):** PostgreSQL on Supabase stores plans and review decisions. Without it, nothing is saved.
+- **Hosting:** backend on Render (Docker), frontend on Vercel.
+- **CI:** `.github/workflows/ci.yml` runs the backend and frontend tests on every push and PR.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `EXTRACTOR` | `keyword` | `keyword` needs no key and no network. `llm` uses the Claude API. |
-| `LLM_API_KEY` | none | Required when `EXTRACTOR=llm`. |
-| `LLM_MODEL` | `claude-opus-5-5` | Claude model used for extraction. |
-| `LLM_TIMEOUT` | `100` | How long to wait for one LLM response. |
-| `CORA_LLM_EFFORT` | `medium` | `low` to `max`. Higher is slower and costs more. |
-| `CORA_MAX_PAGES` | `150` | Longer protocols are rejected with HTTP 413. |
-| `CORA_REQUEST_TIMEOUT_SECONDS` | `120` | Upper limit for one upload; after it the API answers HTTP 504. |
-| `CORA_MAX_OCR_PAGES` | `50` | Most scanned pages read by OCR in one upload. |
-| `CORS_ORIGINS` | none | Comma-separated extra origins (the deployed frontend). |
-| `DATABASE_URL` | none | PostgreSQL URL (Supabase). Turns on saved plans and reviews; run `alembic upgrade head` in `backend/` first. Without it, nothing is stored. |
+## Prerequisites
+- Git
+- Python **3.13+** (`python3 --version`)
+- Node **22+** and npm (`node -v`)
+- Optional: Tesseract, only needed for scanned (image-only) PDFs
+  - macOS: `brew install tesseract`
+  - Debian/Ubuntu: `sudo apt-get install tesseract-ocr tesseract-ocr-eng`
+- Optional: an Anthropic API key, only needed for AI extraction
+- Optional: a Supabase project, only needed to save plans and reviews
 
-If `EXTRACTOR=llm` and the key is missing, the server stops at startup with a message naming the variable.
+## Quick start (local)
 
-### How extraction works
-1. **Ingest.** The PDF is read in memory. Pages with no text layer are read by OCR if Tesseract is installed.
-2. **Extract.** With `EXTRACTOR=llm`, the page-numbered text goes to Claude in one request and comes back as structured JSON. With `keyword`, items and staff roles are found by keyword search, and visits and procedure-to-visit tags are read from the Schedule of Activities table when it is a ruled table. Sections keyword search can't fill (billing, a schedule it couldn't read, no roles found) are flagged for review with the reason.
-3. **Validate and merge.** Every item is checked against the plan schema. Items with no source page, no confidence or a bad reference are flagged for review. Sections the LLM left empty are filled from the keyword results.
-4. **Fallback.** If the LLM can't be used (timeout, rate limit, bad key, unreadable answer), the request is retried once when that could help, and otherwise the keyword plan is returned with a warning in `extraction_info.warning`.
+**1. Clone**
+```bash
+git clone https://github.com/srshah15/cora-frontend.git
+cd cora-frontend
+```
 
-Uploaded PDFs and protocol text are never written to disk or to logs. The log has one line per upload with page count, method and stage timings only.
-
-Cost: one 100-page protocol is roughly $0.45 to $0.60 with `claude-opus-5-5`.
-
-### OCR for scanned PDFs
-OCR uses Tesseract through PyMuPDF. Without it, text PDFs work as usual and scanned PDFs are rejected with a message saying OCR isn't installed.
-
-- macOS: `brew install tesseract`
-- Debian/Ubuntu: `sudo apt-get install tesseract-ocr tesseract-ocr-eng`
-- Render: deploy `backend/` as a Docker web service. `backend/Dockerfile` installs Tesseract.
-
-If Tesseract is installed somewhere unusual, set `TESSDATA_PREFIX` to its `tessdata` folder.
-
-### Backend
-Requires Python 3.13+
-
+**2. Backend** (terminal 1)
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
-cp .env.example .env    # optional; see Configuration below
+cp .env.example .env
 uvicorn main:app --reload --port 8000
 ```
-The frontend sends uploaded protocol PDFs to a FastAPI backend at `http://localhost:8000`. Check that `http://localhost:8000/health` returns `{"status": "ok"}`.
+- ✅ Verify: `curl http://localhost:8000/health` → `{"status":"ok"}`
 
-### Frontend
-The frontend is a React app built with Vite and Tailwind. It needs Node 22 or newer. In a second terminal:
-
+**3. Frontend** (terminal 2, from the repo root)
 ```bash
 cd frontend
 npm ci
-cp .env.example .env    # optional; sets VITE_API_BASE and the upload timeout
+cp .env.example .env
 npm run dev
 ```
-Open http://localhost:5173. The backend URL defaults to `http://localhost:8000`. Change it with `VITE_API_BASE` in `frontend/.env`, or add `?api=https://your-app.onrender.com` to the page URL to change it for one tab.
+- ✅ Verify: open http://localhost:5173, click **Try a sample protocol**, then **Download PDF**.
 
-The old plain-HTML frontend is kept in `frontend/legacy/` until the React app is signed off. Run it with `python3 -m http.server 5174` from that folder.
+**4. End-to-end check**
+- In the browser, upload `backend/tests/fixtures/sample_protocol.pdf`. A plan should appear.
+- Or test the API directly from the repo root:
+  ```bash
+  curl -F file=@backend/tests/fixtures/sample_protocol.pdf http://localhost:8000/api/protocols
+  ```
+- ✅ Verify: the response JSON has `"protocol"` and `"extraction_info"` keys.
 
-## Running tests
-The backend tests are the automated regression baseline. They don't need an API key or network access, and they don't need the server running.
+## Extractor configuration
+- `keyword` (default): needs no key or network.
+  - Finds items and staff roles by keyword search.
+  - Reads visits and procedure-to-visit tags from the Schedule of Activities when it is a ruled table.
+  - Sections it can't fill are flagged for review with the reason.
+- `llm`: sends the page-numbered text to Claude and gets structured JSON back.
+  - For long protocols, only the most relevant pages are sent (title and synopsis, the Schedule of Activities, procedures, safety and so on; see `backend/page_select.py`).
+  - Pages keep their original numbers, so source-page citations still match the PDF.
+- Server default, set in `backend/.env`:
+  ```bash
+  EXTRACTOR=llm
+  LLM_API_KEY=sk-ant-...
+  ```
+- **Per-upload choice:** if `LLM_API_KEY` is set, the upload screen offers **AI extraction** or **Keyword search** even when the default is `keyword`. Without a key, only keyword search is available.
+- The server **won't start** if `EXTRACTOR=llm` is set without a key. The error names the missing variable.
+- Every item is validated against the schema. Items with no source page, low confidence (< 0.7) or a bad reference are flagged for review.
+- Sections the LLM left empty are filled from the keyword results.
+- Fallback: on a timeout, rate limit, bad key or unreadable answer, CORA retries once if that could help, then returns the keyword plan with a warning in `extraction_info.warning`.
+- Cost: about $0.45–$0.60 per 100-page protocol with `claude-opus-5-5`.
+
+## Database (optional)
+- Without `DATABASE_URL`: uploads and exports work, nothing is saved, and `/api/plans*` returns **503**.
+- To enable saving:
+  1. In Supabase, copy the Postgres connection string.
+  2. Put it in `backend/.env`:
+     ```bash
+     DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/postgres
+     ```
+  3. Create the tables (also run after any new migration):
+     ```bash
+     cd backend && source .venv/bin/activate
+     alembic upgrade head
+     ```
+  4. Restart uvicorn.
+- ✅ Verify: this returns `{"plans":[...]}`, not a 503 (any UUID works as the reviewer ID):
+  ```bash
+  curl -H "X-Reviewer-Id: 00000000-0000-0000-0000-000000000001" http://localhost:8000/api/plans
+  ```
+- Stored: protocol identification fields, the extracted plan, and review decisions. Never stored: the PDF or its text.
+
+## Environment variables
+
+### Backend: `backend/.env` (or the host's env settings)
+All are optional. Template: [backend/.env.example](backend/.env.example).
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `EXTRACTOR` | `keyword` | Server default: `keyword` or `llm` |
+| `LLM_API_KEY` | none | Anthropic API key. Required when `EXTRACTOR=llm`, and turns on the AI choice on the upload screen |
+| `LLM_MODEL` | `claude-opus-5-5` | Claude model for extraction |
+| `LLM_TIMEOUT` | `100` | Seconds to wait for one LLM response |
+| `CORA_LLM_EFFORT` | `medium` | `low`, `medium`, `high`, `xhigh` or `max`. Higher is slower and costs more |
+| `CORA_MAX_PAGES` | `150` | Longer PDFs are rejected (HTTP 413) |
+| `CORA_REQUEST_TIMEOUT_SECONDS` | `120` | Time limit for one upload (HTTP 504 after) |
+| `CORA_MAX_OCR_PAGES` | `50` | Most scanned pages OCR'd per upload |
+| `CORS_ORIGINS` | none | Comma-separated extra allowed origins, e.g. the Vercel URL. `localhost:5173` is always allowed |
+| `DATABASE_URL` | none | Supabase Postgres URL. Turns on saving |
+| `TESSDATA_PREFIX` | auto | Tesseract `tessdata` folder, only if Tesseract is installed somewhere unusual |
+
+Invalid values (an unknown extractor or effort, a non-positive number) stop the server at startup with a message naming the variable.
+
+### Frontend: `frontend/.env`
+Template: [frontend/.env.example](frontend/.env.example).
+- ⚠️ Values are **public** and fixed at **build time**. Never put secrets here, and rebuild after changing them.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `VITE_API_BASE` | `http://localhost:8000` | Backend URL |
+| `VITE_UPLOAD_TIMEOUT_MS` | `130000` | Browser upload timeout. Keep it a little above `CORA_REQUEST_TIMEOUT_SECONDS` |
+
+- Tip: adding `?api=https://other-backend` to the page URL overrides `VITE_API_BASE` for that tab.
+
+## Deployment
+
+### Backend: Render (Docker)
+- New **Web Service** → this repo → **Root Directory** `backend` → **Runtime** Docker.
+  - `backend/Dockerfile` installs Tesseract and starts uvicorn on Render's `$PORT`.
+- **Health Check Path:** `/health`
+- **Environment:** set `EXTRACTOR`, `LLM_API_KEY`, `DATABASE_URL`, and `CORS_ORIGINS` (add this after the frontend is deployed).
+- **Migrations:** run `alembic upgrade head` once against the production `DATABASE_URL`, then again after any new migration. You can run it locally with the production URL in `backend/.env`, or from the Render Shell.
+- ✅ Verify: `curl https://<your-backend>.onrender.com/health` → `{"status":"ok"}`
+
+### Frontend: Vercel
+- New **Project** → this repo → **Root Directory** `frontend` → **Framework Preset** Vite.
+  - Build command: `npm run build`. Output directory: `dist`.
+- **Environment Variables:** `VITE_API_BASE=https://<your-backend>.onrender.com`, plus `VITE_UPLOAD_TIMEOUT_MS` if you changed the backend timeout.
+- Deploy, then add the Vercel URL (e.g. `https://cora.vercel.app`, no trailing slash) to the backend's `CORS_ORIGINS` and redeploy the backend.
+- ✅ Verify: open the Vercel URL, upload a protocol, and check that a plan appears with no CORS error in the browser console.
+
+## Testing
+
+### Automated tests
+No API key, network or running server needed.
 
 ```bash
-cd backend
-python3 -m venv .venv            # skip if you already made it during Setup
-source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
-pytest                           # or: pytest -v
-pytest -m "not slow"             # skip the large-PDF tests
+# Backend
+cd backend && source .venv/bin/activate
+pytest                    # full suite, with a coverage table
+pytest -m "not slow"      # skip the large-PDF tests
 ```
-
-Every run prints a coverage table (`pytest-cov`). The three tests that need a real Tesseract install are skipped when it's missing.
-
-`pytest.ini` puts `backend/` on the import path and collects tests from `tests/`:
-
-```
-backend/tests/
-├── conftest.py          # shared fixtures: TestClient, sample PDF bytes, synthetic schedule-table PDFs, isolation guards
-├── unit/                # pure functions: schema (models.py), PDF text extraction and keyword sections (extract.py, soa.py)
-├── integration/         # FastAPI TestClient tests against /health and /api/protocols
-└── fixtures/
-    ├── make_fixtures.py     # generates the fixture PDFs
-    ├── sample_protocol.pdf  # one-page synthetic protocol, no real data
-    └── scanned_protocol.pdf # the same page as an image, for OCR tests
-```
-
-The fixtures in `conftest.py` block every outbound network connection and unset API keys and `CORA_*` settings for every test, so a real external call fails the test instead of going out, and your own `.env` can't change the results. The Claude client is replaced by a scripted fake (`fake_llm` and `llm_mode` in `conftest.py`).
-
-To regenerate the fixture PDFs after you edit the text in `make_fixtures.py`, run this from `backend/`:
 
 ```bash
-python tests/fixtures/make_fixtures.py
-```
-
-Tests check for known strings from the fixture, such as "Synthetic Test Study of Drug X" and `NCT00000000`, so update them if you change those.
-
-### Frontend tests
-```bash
+# Frontend
 cd frontend
-npm test          # Vitest; fetch is stubbed, so no backend is needed
-npm run build
+npm test                  # Vitest; fetch is stubbed
+npm run build             # production build check
 ```
 
-### CI
-`.github/workflows/ci.yml` runs on every push and pull request. The backend job uses Python 3.13 with Tesseract installed, so the OCR tests run too, and runs `pytest`. The frontend job uses Node 22 and runs `npm ci`, `npm test` and `npm run build`. Neither job needs secrets.
+- The three OCR tests are skipped when Tesseract isn't installed. CI installs it, so they run there.
+- The backend tests block outbound network calls and ignore your `.env`. The Claude client is faked (see `backend/tests/conftest.py`).
+- To regenerate the fixture PDFs, run `python tests/fixtures/make_fixtures.py` from `backend/`.
 
 ### Accuracy evaluation
-`backend/eval.py` scores the extractors against the hand-checked protocols in `backend/tests/fixtures/protocols/` (layout and answer-file format in that folder's README):
+`backend/eval.py` scores the extractors against hand-checked public protocols in `backend/tests/fixtures/protocols/` (see that folder's README).
 
 ```bash
 cd backend
-python eval.py                 # keyword extractor; the LLM column says "not run"
-python eval.py --live          # also Claude: needs LLM_API_KEY, shows the estimated cost and asks first
-python eval.py --allow-draft   # include unverified answer files, every row labeled as not a result
+python eval.py                 # keyword extractor only
+python eval.py --live          # also Claude: needs LLM_API_KEY, shows the cost and asks first
+python eval.py --allow-draft   # include unverified answer files, labeled as not results
 ```
 
-For each category (visits, procedures, staffing, safety, billing, equipment, pharmacy, technology) it prints precision (matched / extracted) and recall (matched / expected). Names are normalized first: lowercase, no punctuation, plurals and a few synonyms folded together. Two names match when at least half their words are shared, and each item can match only one other. Procedure-to-visit links are scored as (procedure, visit) pairs after the visits are aligned. The module docstring has the details. Unverified (draft) answer files are never reported as results.
+- It prints precision and recall per category. The matching rules are in the module docstring.
 
-### Manual check
-Click **Try a sample protocol** to load fictional results, then **Download PDF** to check export. To check the full workflow, upload a public, text-based protocol PDF with the backend running.
+### Manual test pass
+- For a full hands-on pass, copy [docs/manual-test-plan.md](docs/manual-test-plan.md) and fill it in.
+- The end-user guide (coordinator/reviewer quick start and FAQ) is at [frontend/public/quick-start.html](frontend/public/quick-start.html) and is linked from the app.
 
-For a full hands-on test pass, copy the blank template [docs/manual-test-plan.md](docs/manual-test-plan.md) and fill it in as you go.
-
-## API and Data Format
-
-### What the backend needs to provide
-
-| Method | Path | Returns |
+## API
+| Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/protocols` | multipart form with field `file` (the PDF) → plan JSON below |
+| `GET` | `/health` | Liveness check |
+| `GET` | `/api/config` | `{default_mode, ai_available}` for the upload screen. Never includes the key |
+| `POST` | `/api/protocols` | Multipart: `file` (PDF, ≤ 50 MB), optional `mode` (`llm` or `keyword`) → plan JSON |
+| `POST` | `/api/export/docx` | Plan + reviews JSON → Word file |
+| `GET` | `/api/plans` | List saved plans (needs DB) |
+| `GET` | `/api/plans/{plan_id}` | One saved plan with the caller's reviews |
+| `PUT` | `/api/plans/{plan_id}/reviews/{item_key}` | Save a review decision |
+| `DELETE` | `/api/plans/{plan_id}/reviews/{item_key}` | Undo a review decision |
+| `DELETE` | `/api/plans/{plan_id}` | Delete the caller's decisions on a plan |
 
-The PDF export is built in the browser (`pdf-export.js`, using jsPDF), so the backend only has to return JSON.
+- Plan schema: [backend/models.py](backend/models.py). Full example: [frontend/src/data/samplePlan.js](frontend/src/data/samplePlan.js).
+- Interactive docs: http://localhost:8000/docs
 
-FastAPI will need CORS enabled for the frontend origin (`CORSMiddleware`).
+## Privacy and security
+- Uploaded PDFs and their text are never written to disk, logs or the database. Each upload logs one line with page count, method and timings only.
+- Reviewers are identified by the `X-Reviewer-Id` and `X-Reviewer-Name` headers. **This is not authentication**: anyone who sends another person's ID can read and change that person's decisions.
+- Never commit `.env` files (they are git-ignored). Put production secrets in the Render and Vercel dashboards.
 
-### Plan JSON
+## Troubleshooting
+- **`Port 5173 is in use`:** stop the other process. Vite won't switch ports, because the backend's CORS only allows 5173.
+- **CORS error in the browser console:** add the frontend's exact origin to `CORS_ORIGINS` and restart the backend.
+- **Server exits with `ConfigError`:** fix the variable named in the message in `backend/.env`.
+- **No "AI extraction" option on the upload screen, or "AI extraction isn't set up":** set `LLM_API_KEY` and restart the backend.
+- **"OCR isn't installed":** the PDF is scanned. Install Tesseract (see Prerequisites) or use the Docker image.
+- **HTTP 413:** the PDF has more than `CORA_MAX_PAGES` pages or is over 50 MB.
+- **HTTP 504 or a browser timeout:** raise `CORA_REQUEST_TIMEOUT_SECONDS` and `VITE_UPLOAD_TIMEOUT_MS` together.
+- **HTTP 400 on `/api/plans`:** send an `X-Reviewer-Id` header containing a UUID.
+- **HTTP 503 on `/api/plans`:** `DATABASE_URL` is not set, or `alembic upgrade head` hasn't been run.
+- **Frontend still calls the wrong backend:** `VITE_*` values are fixed at build time, so rebuild or redeploy after changing them.
 
-`sample-data.js` is the full reference example. Shape:
-
-```jsonc
-{
-  "id": "abc123",
-  "protocol": { "title", "short_title", "registry_id", "phase", "sponsor",
-                "therapeutic_area", "design", "enrollment", "duration", "pages" },
-  "visits":     [{ "id": "V1", "name", "day", "window", "type": "Clinic|Phone" }],
-  "procedures": [{ "name", "category", "visits": ["V1","V2"], "notes", "source_page", "confidence" }],
-  "staffing":   [{ "role", "fte", "responsibilities", "qualifications", "notes", "source_page", "confidence" }],
-  "safety":     [{ "event", "timeline", "recipient", "method", "notes", "source_page", "confidence" }],
-  "billing":    [{ "item", "designation": "Sponsor|Standard of care|...", "visits", "notes", "confidence" }],
-  "equipment":  [{ "item", "purpose", "confidence" }],
-  "pharmacy":   { "involved": true, "items": [{ "item", "notes", "confidence" }] },
-  "technology": [{ "system", "purpose", "notes", "confidence" }]
-}
+## Repository layout
 ```
-
-- `confidence` is 0–1. Anything under `reviewThreshold` (0.7, in `config.js`) is flagged for human review.
-- `notes` is where the backend explains why something is uncertain. It shows up under the item.
-- `source_page` is optional but lets reviewers check the item against the PDF.
-
-### Files
-
-- `index.html`: the three views (upload, processing, results)
-- `app.js`: upload handling, rendering, review state
-- `pdf-export.js`: builds the downloadable PDF plan (tables, review highlights, sign-off block)
-- `styles.css`: light/dark themes, responsive layout, print styles
-- `sample-data.js`: fictional sample output (not a real protocol)
-- `config.js`: API base URL and review threshold
+.github/workflows/  CI (backend pytest + frontend test/build)
+backend/            FastAPI app, extractors, DB models, Alembic migrations, eval.py, Dockerfile
+  tests/            pytest suite (unit/, integration/, fixtures/, fixtures/protocols/)
+docs/               manual test plan template
+frontend/           Vite + React app
+  src/              components/, lib/ (plan, PDF export, roles), api.js, config.js
+  public/           end-user quick-start guide (HTML + PDF)
+  legacy/           original static prototype, kept until sign-off; not used
+PLAN.md             development plan and design decisions
+```
